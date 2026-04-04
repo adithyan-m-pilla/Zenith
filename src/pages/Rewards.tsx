@@ -107,16 +107,15 @@ const Rewards = () => {
     });
   };
 
+  const pct = Math.min((currentXP / needed) * 100, 100);
+
   return (
     <div className="space-y-6">
       <div className="animate-fade-in">
         <h1 className="font-heading text-3xl font-bold text-foreground flex items-center gap-3">
           <Trophy className="w-8 h-8 text-primary" /> Rewards
         </h1>
-        <p className="text-muted-foreground mt-1">{earned} of {badges.length} badges earned</p>
       </div>
-
-      {/* Daily Challenges */}
       <div className="glass-card p-5 animate-fade-in">
         <h3 className="font-heading font-semibold text-foreground flex items-center gap-2 mb-4">
           <Sparkles className="w-5 h-5 text-warning" /> Today's Challenges
