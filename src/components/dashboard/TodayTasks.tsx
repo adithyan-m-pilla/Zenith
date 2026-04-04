@@ -1,5 +1,6 @@
-import { CheckCircle2, Circle, BookOpen, PenTool } from "lucide-react";
+import { CheckCircle2, Circle, BookOpen, PenTool, CalendarClock } from "lucide-react";
 import { useState } from "react";
+import { getRevisionLabel } from "@/lib/revision";
 
 interface Task {
   id: string;
@@ -7,13 +8,15 @@ interface Task {
   subject: string;
   type: "revise" | "practice";
   completed: boolean;
+  revisionNumber?: number;
 }
 
 const initialTasks: Task[] = [
-  { id: "1", title: "Revise: Organic Chemistry - Alcohols", subject: "Chemistry", type: "revise", completed: false },
+  { id: "1", title: "Revise: Laws of Motion", subject: "Physics", type: "revise", completed: false, revisionNumber: 2 },
   { id: "2", title: "Practice: Integration by Parts", subject: "Mathematics", type: "practice", completed: true },
-  { id: "3", title: "Revise: Laws of Motion", subject: "Physics", type: "revise", completed: false },
-  { id: "4", title: "Practice: Cell Biology MCQs", subject: "Biology", type: "practice", completed: false },
+  { id: "3", title: "Revise: Work, Energy & Power", subject: "Physics", type: "revise", completed: false, revisionNumber: 1 },
+  { id: "4", title: "Revise: Atomic Structure", subject: "Chemistry", type: "revise", completed: false, revisionNumber: 3 },
+  { id: "5", title: "Practice: Cell Biology MCQs", subject: "Biology", type: "practice", completed: false },
 ];
 
 const TodayTasks = () => {
@@ -49,7 +52,15 @@ const TodayTasks = () => {
               <p className={`text-sm font-medium truncate ${task.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
                 {task.title}
               </p>
-              <p className="text-xs text-muted-foreground">{task.subject}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground">{task.subject}</p>
+                {task.revisionNumber !== undefined && (
+                  <span className="text-[10px] text-info flex items-center gap-1">
+                    <CalendarClock className="w-3 h-3" />
+                    {getRevisionLabel(task.revisionNumber).replace(/\(.*\)/, "").trim()}
+                  </span>
+                )}
+              </div>
             </div>
             {task.type === "revise" ? (
               <BookOpen className="w-4 h-4 text-info shrink-0" />
