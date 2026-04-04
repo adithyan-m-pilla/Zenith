@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { LayoutDashboard, Brain, BookOpen, Timer, BarChart3, Trophy } from "lucide-react";
-
+import logo from "@/assets/logo.png";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/ai-tutor", icon: Brain, label: "AI Tutor" },
@@ -16,9 +16,7 @@ const AppSidebar = () => {
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col p-4 z-50">
       <div className="flex items-center gap-3 px-3 py-4 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-          <BookOpen className="w-5 h-5 text-primary-foreground" />
-        </div>
+        <img src={logo} alt="Zenith logo" className="w-10 h-10 rounded-xl object-cover" />
         <h1 className="font-heading text-xl font-bold text-foreground">Zenith</h1>
       </div>
 

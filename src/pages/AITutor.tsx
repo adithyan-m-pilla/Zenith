@@ -1,7 +1,10 @@
-import { useState } from "react";
-import { Brain, Send, Sparkles, BookOpen, Lightbulb, HelpCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Brain, Send, Sparkles, BookOpen, Lightbulb, HelpCircle, Loader2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 
 type Level = "basic" | "moderate" | "hard" | "quiz";
+type Msg = { role: "user" | "assistant"; content: string };
 
 const levels: { key: Level; label: string; icon: React.ElementType; desc: string }[] = [
   { key: "basic", label: "Basic", icon: BookOpen, desc: "Explains from the very fundamentals, even basics from earlier classes" },
@@ -10,21 +13,125 @@ const levels: { key: Level; label: string; icon: React.ElementType; desc: string
   { key: "quiz", label: "Quiz Me", icon: HelpCircle, desc: "Tests you on a chapter with progressive hints" },
 ];
 
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+async function streamChat({
+  messages,
+  level,
+  onDelta,
+  onDone,
+}: {
+  messages: Msg[];
+  level: Level;
+  onDelta: (t: string) => void;
+  onDone: () => void;
+}) {
+  const resp = await fetch(CHAT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify({ messages, level }),
+  });
+
+  if (!resp.ok || !resp.body) {
+    const err = await resp.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let done = false;
+
+  while (!done) {
+    const { done: rd, value } = await reader.read();
+    if (rd) break;
+    buf += decoder.decode(value, { stream: true });
+
+    let idx: number;
+    while ((idx = buf.indexOf("\n")) !== -1) {
+      let line = buf.slice(0, idx);
+      buf = buf.slice(idx + 1);
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      if (line.startsWith(":") || line.trim() === "") continue;
+      if (!line.startsWith("data: ")) continue;
+      const json = line.slice(6).trim();
+      if (json === "[DONE]") { done = true; break; }
+      try {
+        const p = JSON.parse(json);
+        const c = p.choices?.[0]?.delta?.content as string | undefined;
+        if (c) onDelta(c);
+      } catch {
+        buf = line + "\n" + buf;
+        break;
+      }
+    }
+  }
+
+  // flush
+  if (buf.trim()) {
+    for (let raw of buf.split("\n")) {
+      if (!raw) continue;
+      if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+      if (!raw.startsWith("data: ")) continue;
+      const json = raw.slice(6).trim();
+      if (json === "[DONE]") continue;
+      try {
+        const p = JSON.parse(json);
+        const c = p.choices?.[0]?.delta?.content as string | undefined;
+        if (c) onDelta(c);
+      } catch { /* ignore */ }
+    }
+  }
+
+  onDone();
+}
+
 const AITutor = () => {
   const [activeLevel, setActiveLevel] = useState<Level>("moderate");
-  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([
-    { role: "ai", text: "Hello! I'm your AI Tutor. Choose a difficulty level and ask me anything! 🎓" },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", text: input },
-      { role: "ai", text: `[${activeLevel.toUpperCase()} mode] This is a placeholder response. Connect to Lovable Cloud to enable real AI responses!` },
-    ]);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || isLoading) return;
+    const userMsg: Msg = { role: "user", content: text };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setIsLoading(true);
+
+    let assistantSoFar = "";
+    const upsert = (chunk: string) => {
+      assistantSoFar += chunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant") {
+          return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
+        }
+        return [...prev, { role: "assistant", content: assistantSoFar }];
+      });
+    };
+
+    try {
+      await streamChat({
+        messages: [...messages, userMsg],
+        level: activeLevel,
+        onDelta: upsert,
+        onDone: () => setIsLoading(false),
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to get AI response");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -53,7 +160,12 @@ const AITutor = () => {
       </div>
 
       <div className="glass-card flex flex-col h-[450px] animate-fade-in">
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+          {messages.length === 0 && (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              Choose a mode and ask me anything! 🎓
+            </div>
+          )}
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
@@ -63,10 +175,23 @@ const AITutor = () => {
                     : "bg-secondary text-secondary-foreground rounded-bl-md"
                 }`}
               >
-                {msg.text}
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-sm prose-invert max-w-none">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  msg.content
+                )}
               </div>
             </div>
           ))}
+          {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
+            <div className="flex justify-start">
+              <div className="bg-secondary text-secondary-foreground px-4 py-2.5 rounded-2xl rounded-bl-md">
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </div>
+            </div>
+          )}
         </div>
         <div className="border-t border-border p-3 flex gap-2">
           <input
@@ -74,9 +199,14 @@ const AITutor = () => {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Ask anything..."
-            className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            disabled={isLoading}
+            className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
           />
-          <button onClick={handleSend} className="bg-primary text-primary-foreground p-2.5 rounded-lg hover:opacity-90 transition-opacity">
+          <button
+            onClick={handleSend}
+            disabled={isLoading}
+            className="bg-primary text-primary-foreground p-2.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
             <Send className="w-4 h-4" />
           </button>
         </div>
