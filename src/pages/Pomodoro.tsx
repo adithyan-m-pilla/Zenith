@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Timer, Play, Pause, RotateCcw, Settings } from "lucide-react";
 
 type TimerMode = "work" | "break";
+type PomodoroMode = "standard" | "custom";
 type DisplayStyle = "digital" | "analog" | "minimal";
 
 const themes = [
@@ -11,16 +12,43 @@ const themes = [
   { name: "Rose", bg: "from-rose-900/40 to-background", accent: "text-destructive" },
 ];
 
+// Standard: 5 min work → 1 min break ratio (scales up)
+function getStandardBreak(workMin: number): number {
+  return Math.max(1, Math.round(workMin / 5));
+}
+
+const STANDARD_PRESETS = [
+  { label: "5 / 1", work: 5 },
+  { label: "10 / 2", work: 10 },
+  { label: "15 / 3", work: 15 },
+  { label: "25 / 5", work: 25 },
+  { label: "50 / 10", work: 50 },
+  { label: "120 / 30", work: 120 },
+];
+
 const Pomodoro = () => {
-  const [workMin, setWorkMin] = useState(5);
-  const [breakMin, setBreakMin] = useState(1);
+  const [pomoMode, setPomoMode] = useState<PomodoroMode>("standard");
+  const [standardWork, setStandardWork] = useState(25);
+  const [customWork, setCustomWork] = useState(25);
+  const [customBreak, setCustomBreak] = useState(5);
+
+  const workMin = pomoMode === "standard" ? standardWork : customWork;
+  const breakMin = pomoMode === "standard" ? getStandardBreak(standardWork) : customBreak;
+
   const [mode, setMode] = useState<TimerMode>("work");
-  const [seconds, setSeconds] = useState(5 * 60);
+  const [seconds, setSeconds] = useState(workMin * 60);
   const [running, setRunning] = useState(false);
   const [display, setDisplay] = useState<DisplayStyle>("digital");
   const [themeIdx, setThemeIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const intervalRef = useRef<number | null>(null);
+
+  // Reset timer when pomo mode or work/break changes (only if not running)
+  useEffect(() => {
+    if (!running) {
+      setSeconds(mode === "work" ? workMin * 60 : breakMin * 60);
+    }
+  }, [workMin, breakMin, pomoMode]);
 
   const totalSeconds = mode === "work" ? workMin * 60 : breakMin * 60;
   const progress = ((totalSeconds - seconds) / totalSeconds) * 100;
@@ -58,106 +86,74 @@ const Pomodoro = () => {
   const renderAnalog = () => {
     const minuteAngle = ((totalSeconds - seconds) / totalSeconds) * 360;
     const secondAngle = ((seconds % 60) / 60) * 360;
-    const cx = 50, cy = 50, r = 44;
+    const cx = 50, cy = 50;
 
     return (
       <div className="relative w-72 h-72">
         <svg className="w-full h-full" viewBox="0 0 100 100">
-          {/* Watch outer bezel */}
           <circle cx={cx} cy={cy} r="48" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3" />
           <circle cx={cx} cy={cy} r="47" fill="none" stroke="hsl(var(--border))" strokeWidth="1.5" />
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="0.3" />
+          <circle cx={cx} cy={cy} r="44" fill="hsl(var(--card))" opacity="0.6" />
 
-          {/* Watch face background */}
-          <circle cx={cx} cy={cy} r={r} fill="hsl(var(--card))" opacity="0.6" />
-
-          {/* Hour markers (12 marks) */}
           {Array.from({ length: 12 }).map((_, i) => {
             const angle = (i * 30 - 90) * (Math.PI / 180);
-            const outerR = 42;
-            const innerR = i % 3 === 0 ? 37 : 39;
-            const x1 = cx + outerR * Math.cos(angle);
-            const y1 = cy + outerR * Math.sin(angle);
-            const x2 = cx + innerR * Math.cos(angle);
-            const y2 = cy + innerR * Math.sin(angle);
+            const outerR = 42, innerR = i % 3 === 0 ? 37 : 39;
             return (
-              <line key={`h-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
+              <line key={`h-${i}`} x1={cx + outerR * Math.cos(angle)} y1={cy + outerR * Math.sin(angle)}
+                x2={cx + innerR * Math.cos(angle)} y2={cy + innerR * Math.sin(angle)}
                 stroke="hsl(var(--foreground))" strokeWidth={i % 3 === 0 ? "1.2" : "0.5"} strokeLinecap="round" />
             );
           })}
 
-          {/* Minute tick marks (60 marks) */}
           {Array.from({ length: 60 }).map((_, i) => {
             if (i % 5 === 0) return null;
             const angle = (i * 6 - 90) * (Math.PI / 180);
-            const x1 = cx + 42 * Math.cos(angle);
-            const y1 = cy + 42 * Math.sin(angle);
-            const x2 = cx + 41 * Math.cos(angle);
-            const y2 = cy + 41 * Math.sin(angle);
             return (
-              <line key={`m-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
+              <line key={`m-${i}`} x1={cx + 42 * Math.cos(angle)} y1={cy + 42 * Math.sin(angle)}
+                x2={cx + 41 * Math.cos(angle)} y2={cy + 41 * Math.sin(angle)}
                 stroke="hsl(var(--muted-foreground))" strokeWidth="0.3" />
             );
           })}
 
-          {/* Hour numbers */}
           {[12, 3, 6, 9].map((num) => {
             const i = num === 12 ? 0 : num;
             const angle = (i * 30 - 90) * (Math.PI / 180);
-            const textR = 34;
-            const x = cx + textR * Math.cos(angle);
-            const y = cy + textR * Math.sin(angle);
             return (
-              <text key={`n-${num}`} x={x} y={y} textAnchor="middle" dominantBaseline="central"
+              <text key={`n-${num}`} x={cx + 34 * Math.cos(angle)} y={cy + 34 * Math.sin(angle)}
+                textAnchor="middle" dominantBaseline="central"
                 fill="hsl(var(--foreground))" fontSize="4" fontWeight="bold" fontFamily="sans-serif">
                 {num}
               </text>
             );
           })}
 
-          {/* Progress arc (elapsed time) */}
-          <circle
-            cx={cx} cy={cy} r="40" fill="none" stroke="hsl(var(--primary))" strokeWidth="2"
+          <circle cx={cx} cy={cy} r="40" fill="none" stroke="hsl(var(--primary))" strokeWidth="2"
             strokeDasharray={`${2 * Math.PI * 40}`}
             strokeDashoffset={`${2 * Math.PI * 40 * (1 - progress / 100)}`}
-            strokeLinecap="round"
-            className="transition-all duration-1000"
-            transform={`rotate(-90 ${cx} ${cy})`}
-            opacity="0.4"
-          />
+            strokeLinecap="round" className="transition-all duration-1000"
+            transform={`rotate(-90 ${cx} ${cy})`} opacity="0.4" />
 
-          {/* Minute hand (progress) */}
           {(() => {
             const angle = (minuteAngle - 90) * (Math.PI / 180);
-            const handLen = 28;
-            const x2 = cx + handLen * Math.cos(angle);
-            const y2 = cy + handLen * Math.sin(angle);
-            return <line x1={cx} y1={cy} x2={x2} y2={y2} stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" className="transition-all duration-1000" />;
+            return <line x1={cx} y1={cy} x2={cx + 28 * Math.cos(angle)} y2={cy + 28 * Math.sin(angle)}
+              stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" className="transition-all duration-1000" />;
           })()}
 
-          {/* Second hand */}
           {(() => {
             const angle = (secondAngle - 90) * (Math.PI / 180);
-            const handLen = 32;
-            const tailLen = 8;
-            const x2 = cx + handLen * Math.cos(angle);
-            const y2 = cy + handLen * Math.sin(angle);
-            const xTail = cx - tailLen * Math.cos(angle);
-            const yTail = cy - tailLen * Math.sin(angle);
             return (
               <>
-                <line x1={xTail} y1={yTail} x2={x2} y2={y2} stroke="hsl(var(--destructive))" strokeWidth="0.5" strokeLinecap="round" />
+                <line x1={cx - 8 * Math.cos(angle)} y1={cy - 8 * Math.sin(angle)}
+                  x2={cx + 32 * Math.cos(angle)} y2={cy + 32 * Math.sin(angle)}
+                  stroke="hsl(var(--destructive))" strokeWidth="0.5" strokeLinecap="round" />
                 <circle cx={cx} cy={cy} r="1.5" fill="hsl(var(--destructive))" />
               </>
             );
           })()}
 
-          {/* Center pin */}
           <circle cx={cx} cy={cy} r="2" fill="hsl(var(--foreground))" />
           <circle cx={cx} cy={cy} r="1" fill="hsl(var(--background))" />
         </svg>
-
-        {/* Digital readout below watch */}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">
           <span className={`font-heading text-lg font-bold ${theme.accent} tabular-nums`}>{formatTime(seconds)}</span>
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider ml-2">{mode}</span>
@@ -173,26 +169,89 @@ const Pomodoro = () => {
           <h1 className="font-heading text-3xl font-bold text-foreground flex items-center gap-3">
             <Timer className="w-8 h-8 text-primary" /> Pomodoro
           </h1>
-          <p className="text-muted-foreground mt-1">5 min work · 1 min break</p>
+          <p className="text-muted-foreground mt-1">
+            {pomoMode === "standard" ? `${workMin} min work · ${breakMin} min break` : `Custom: ${workMin}m work · ${breakMin}m break`}
+          </p>
         </div>
         <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg hover:bg-secondary transition-colors">
           <Settings className="w-5 h-5 text-muted-foreground" />
         </button>
       </div>
 
-      {showSettings && (
-        <div className="glass-card p-4 grid grid-cols-2 lg:grid-cols-4 gap-4 animate-scale-in">
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Work (min)</label>
-            <input type="number" value={workMin} onChange={(e) => { setWorkMin(+e.target.value); if (!running) setSeconds(+e.target.value * 60); }} className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+      {/* Mode toggle */}
+      <div className="flex gap-2 animate-fade-in">
+        <button
+          onClick={() => { setPomoMode("standard"); setRunning(false); setMode("work"); }}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${pomoMode === "standard" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+        >
+          Standard
+        </button>
+        <button
+          onClick={() => { setPomoMode("custom"); setRunning(false); setMode("work"); }}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${pomoMode === "custom" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+        >
+          Custom
+        </button>
+      </div>
+
+      {/* Standard presets or custom settings */}
+      {pomoMode === "standard" ? (
+        <div className="glass-card p-4 animate-fade-in">
+          <label className="text-xs text-muted-foreground block mb-2">Preset (work / break)</label>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {STANDARD_PRESETS.map((p) => (
+              <button
+                key={p.work}
+                onClick={() => { setStandardWork(p.work); setRunning(false); setMode("work"); }}
+                className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${standardWork === p.work ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Break (min)</label>
-            <input type="number" value={breakMin} onChange={(e) => setBreakMin(+e.target.value)} className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+          <p className="text-[10px] text-muted-foreground mt-2">Ratio: 5 min work = 1 min break</p>
+        </div>
+      ) : (
+        showSettings && (
+          <div className="glass-card p-4 grid grid-cols-2 lg:grid-cols-4 gap-4 animate-scale-in">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Work (min)</label>
+              <input type="number" value={customWork} onChange={(e) => { setCustomWork(+e.target.value); if (!running) setMode("work"); }}
+                className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Break (min)</label>
+              <input type="number" value={customBreak} onChange={(e) => setCustomBreak(+e.target.value)}
+                className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Display</label>
+              <select value={display} onChange={(e) => setDisplay(e.target.value as DisplayStyle)}
+                className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="digital">Digital</option>
+                <option value="analog">Analog</option>
+                <option value="minimal">Minimal</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Theme</label>
+              <div className="flex gap-2 mt-1">
+                {themes.map((t, i) => (
+                  <button key={t.name} onClick={() => setThemeIdx(i)} className={`w-8 h-8 rounded-full bg-gradient-to-br ${t.bg} border-2 ${i === themeIdx ? "border-primary" : "border-transparent"}`} title={t.name} />
+                ))}
+              </div>
+            </div>
           </div>
+        )
+      )}
+
+      {/* Display/theme settings for standard mode */}
+      {pomoMode === "standard" && showSettings && (
+        <div className="glass-card p-4 grid grid-cols-2 gap-4 animate-scale-in">
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Display</label>
-            <select value={display} onChange={(e) => setDisplay(e.target.value as DisplayStyle)} className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+            <select value={display} onChange={(e) => setDisplay(e.target.value as DisplayStyle)}
+              className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
               <option value="digital">Digital</option>
               <option value="analog">Analog</option>
               <option value="minimal">Minimal</option>
