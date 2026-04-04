@@ -46,6 +46,11 @@ function getDailySeed() {
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 }
 
+function getTodayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
 function seededShuffle<T>(arr: T[], seed: number): T[] {
   const copy = [...arr];
   let s = seed;
@@ -56,15 +61,6 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
   }
   return copy;
 }
-
-const badges = [
-  { name: "First Steps", desc: "Complete your first chapter", icon: Star, earned: true },
-  { name: "5-Day Streak", desc: "Study 5 consecutive days", icon: Flame, earned: true },
-  { name: "Consistent Scholar", desc: "4+ hours for 5 days straight", icon: Target, earned: false, progress: 3, total: 5 },
-  { name: "Speed Learner", desc: "Complete 10 chapters in a week", icon: Zap, earned: false, progress: 6, total: 10 },
-  { name: "Master Mind", desc: "Score 100% on 5 quizzes", icon: Award, earned: false, progress: 2, total: 5 },
-  { name: "Night Owl", desc: "Study past midnight 3 times", icon: Star, earned: true },
-];
 
 const Rewards = () => {
   const earned = badges.filter((b) => b.earned).length;
