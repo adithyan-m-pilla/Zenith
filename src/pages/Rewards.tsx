@@ -63,9 +63,7 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
 }
 
 const Rewards = () => {
-  const earned = badges.filter((b) => b.earned).length;
-
-  // XP & Level (demo: stored in state, would persist with backend)
+  // XP & Level
   const [totalXP, setTotalXP] = useState(1270);
 
   const { level, currentXP, needed } = useMemo(() => {
