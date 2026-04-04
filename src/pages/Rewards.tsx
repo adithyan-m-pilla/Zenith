@@ -101,11 +101,11 @@ const Rewards = () => {
         next.add(idx);
         setTotalXP((x) => x + 50);
       }
+      const arr = Array.from(next);
+      localStorage.setItem(`zenith-challenges-${todayKey}`, JSON.stringify(arr));
       return next;
     });
   };
-
-  const pct = Math.min((currentXP / needed) * 100, 100);
 
   return (
     <div className="space-y-6">
