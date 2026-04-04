@@ -31,8 +31,9 @@ const Pomodoro = () => {
         setSeconds((prev) => {
           if (prev <= 1) {
             setRunning(false);
-            setMode((m) => (m === "work" ? "break" : "work"));
-            return m => (mode === "work" ? breakMin : workMin) * 60;
+            const nextMode = mode === "work" ? "break" : "work";
+            setMode(nextMode);
+            return nextMode === "work" ? workMin * 60 : breakMin * 60;
           }
           return prev - 1;
         });
