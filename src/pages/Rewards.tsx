@@ -78,12 +78,18 @@ const Rewards = () => {
     return { level: lvl, currentXP: xp, needed: xpPerLevel(lvl) };
   }, [totalXP]);
 
-  // Daily challenges (seeded by date)
+  // Daily challenges reset at midnight via date key
+  const todayKey = getTodayKey();
+
   const dailyChallenges = useMemo(() => {
     return seededShuffle(challengePool, getDailySeed()).slice(0, 5);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayKey]);
 
-  const [completedChallenges, setCompletedChallenges] = useState<Set<number>>(new Set());
+  const [completedChallenges, setCompletedChallenges] = useState<Set<number>>(() => {
+    const saved = localStorage.getItem(`zenith-challenges-${todayKey}`);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
 
   const toggleChallenge = (idx: number) => {
     setCompletedChallenges((prev) => {
