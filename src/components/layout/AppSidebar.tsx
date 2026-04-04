@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { LayoutDashboard, Brain, BookOpen, Timer, BarChart3, Trophy } from "lucide-react";
-
+import logo from "@/assets/logo.png";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/ai-tutor", icon: Brain, label: "AI Tutor" },
