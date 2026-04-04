@@ -12,10 +12,10 @@ const themes = [
 ];
 
 const Pomodoro = () => {
-  const [workMin, setWorkMin] = useState(25);
-  const [breakMin, setBreakMin] = useState(5);
+  const [workMin, setWorkMin] = useState(5);
+  const [breakMin, setBreakMin] = useState(1);
   const [mode, setMode] = useState<TimerMode>("work");
-  const [seconds, setSeconds] = useState(25 * 60);
+  const [seconds, setSeconds] = useState(5 * 60);
   const [running, setRunning] = useState(false);
   const [display, setDisplay] = useState<DisplayStyle>("digital");
   const [themeIdx, setThemeIdx] = useState(0);
@@ -56,22 +56,111 @@ const Pomodoro = () => {
   const theme = themes[themeIdx];
 
   const renderAnalog = () => {
-    const angle = (progress / 100) * 360;
+    const minuteAngle = ((totalSeconds - seconds) / totalSeconds) * 360;
+    const secondAngle = ((seconds % 60) / 60) * 360;
+    const cx = 50, cy = 50, r = 44;
+
     return (
-      <div className="relative w-64 h-64">
-        <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="45" fill="none" stroke="hsl(var(--muted))" strokeWidth="4" />
+      <div className="relative w-72 h-72">
+        <svg className="w-full h-full" viewBox="0 0 100 100">
+          {/* Watch outer bezel */}
+          <circle cx={cx} cy={cy} r="48" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3" />
+          <circle cx={cx} cy={cy} r="47" fill="none" stroke="hsl(var(--border))" strokeWidth="1.5" />
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="0.3" />
+
+          {/* Watch face background */}
+          <circle cx={cx} cy={cy} r={r} fill="hsl(var(--card))" opacity="0.6" />
+
+          {/* Hour markers (12 marks) */}
+          {Array.from({ length: 12 }).map((_, i) => {
+            const angle = (i * 30 - 90) * (Math.PI / 180);
+            const outerR = 42;
+            const innerR = i % 3 === 0 ? 37 : 39;
+            const x1 = cx + outerR * Math.cos(angle);
+            const y1 = cy + outerR * Math.sin(angle);
+            const x2 = cx + innerR * Math.cos(angle);
+            const y2 = cy + innerR * Math.sin(angle);
+            return (
+              <line key={`h-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke="hsl(var(--foreground))" strokeWidth={i % 3 === 0 ? "1.2" : "0.5"} strokeLinecap="round" />
+            );
+          })}
+
+          {/* Minute tick marks (60 marks) */}
+          {Array.from({ length: 60 }).map((_, i) => {
+            if (i % 5 === 0) return null;
+            const angle = (i * 6 - 90) * (Math.PI / 180);
+            const x1 = cx + 42 * Math.cos(angle);
+            const y1 = cy + 42 * Math.sin(angle);
+            const x2 = cx + 41 * Math.cos(angle);
+            const y2 = cy + 41 * Math.sin(angle);
+            return (
+              <line key={`m-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke="hsl(var(--muted-foreground))" strokeWidth="0.3" />
+            );
+          })}
+
+          {/* Hour numbers */}
+          {[12, 3, 6, 9].map((num) => {
+            const i = num === 12 ? 0 : num;
+            const angle = (i * 30 - 90) * (Math.PI / 180);
+            const textR = 34;
+            const x = cx + textR * Math.cos(angle);
+            const y = cy + textR * Math.sin(angle);
+            return (
+              <text key={`n-${num}`} x={x} y={y} textAnchor="middle" dominantBaseline="central"
+                fill="hsl(var(--foreground))" fontSize="4" fontWeight="bold" fontFamily="sans-serif">
+                {num}
+              </text>
+            );
+          })}
+
+          {/* Progress arc (elapsed time) */}
           <circle
-            cx="50" cy="50" r="45" fill="none" stroke="hsl(var(--primary))" strokeWidth="4"
-            strokeDasharray={`${2 * Math.PI * 45}`}
-            strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress / 100)}`}
+            cx={cx} cy={cy} r="40" fill="none" stroke="hsl(var(--primary))" strokeWidth="2"
+            strokeDasharray={`${2 * Math.PI * 40}`}
+            strokeDashoffset={`${2 * Math.PI * 40 * (1 - progress / 100)}`}
             strokeLinecap="round"
             className="transition-all duration-1000"
+            transform={`rotate(-90 ${cx} ${cy})`}
+            opacity="0.4"
           />
+
+          {/* Minute hand (progress) */}
+          {(() => {
+            const angle = (minuteAngle - 90) * (Math.PI / 180);
+            const handLen = 28;
+            const x2 = cx + handLen * Math.cos(angle);
+            const y2 = cy + handLen * Math.sin(angle);
+            return <line x1={cx} y1={cy} x2={x2} y2={y2} stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" className="transition-all duration-1000" />;
+          })()}
+
+          {/* Second hand */}
+          {(() => {
+            const angle = (secondAngle - 90) * (Math.PI / 180);
+            const handLen = 32;
+            const tailLen = 8;
+            const x2 = cx + handLen * Math.cos(angle);
+            const y2 = cy + handLen * Math.sin(angle);
+            const xTail = cx - tailLen * Math.cos(angle);
+            const yTail = cy - tailLen * Math.sin(angle);
+            return (
+              <>
+                <line x1={xTail} y1={yTail} x2={x2} y2={y2} stroke="hsl(var(--destructive))" strokeWidth="0.5" strokeLinecap="round" />
+                <circle cx={cx} cy={cy} r="1.5" fill="hsl(var(--destructive))" />
+              </>
+            );
+          })()}
+
+          {/* Center pin */}
+          <circle cx={cx} cy={cy} r="2" fill="hsl(var(--foreground))" />
+          <circle cx={cx} cy={cy} r="1" fill="hsl(var(--background))" />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`font-heading text-4xl font-bold ${theme.accent}`}>{formatTime(seconds)}</span>
-          <span className="text-xs text-muted-foreground uppercase tracking-wider mt-1">{mode}</span>
+
+        {/* Digital readout below watch */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">
+          <span className={`font-heading text-lg font-bold ${theme.accent} tabular-nums`}>{formatTime(seconds)}</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider ml-2">{mode}</span>
         </div>
       </div>
     );
@@ -84,7 +173,7 @@ const Pomodoro = () => {
           <h1 className="font-heading text-3xl font-bold text-foreground flex items-center gap-3">
             <Timer className="w-8 h-8 text-primary" /> Pomodoro
           </h1>
-          <p className="text-muted-foreground mt-1">Focus sessions with customizable timers</p>
+          <p className="text-muted-foreground mt-1">5 min work · 1 min break</p>
         </div>
         <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg hover:bg-secondary transition-colors">
           <Settings className="w-5 h-5 text-muted-foreground" />
