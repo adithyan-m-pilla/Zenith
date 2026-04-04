@@ -1,4 +1,4 @@
-import { Trophy, Star, Flame, Target, Zap, Award, CheckCircle2, Circle, Sparkles } from "lucide-react";
+import { Trophy, Zap, CheckCircle2, Circle, Sparkles } from "lucide-react";
 import { useState, useMemo } from "react";
 
 // Daily challenge pool
