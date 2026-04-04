@@ -22,7 +22,7 @@ const App = () => (
       <BrowserRouter>
         <div className="flex min-h-screen">
           <AppSidebar />
-          <main className="flex-1 ml-64 p-6">
+          <main className="flex-1 md:ml-64 p-6 pt-16 md:pt-6">
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/ai-tutor" element={<AITutor />} />
