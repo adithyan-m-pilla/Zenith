@@ -17,6 +17,7 @@ const navItems = [
 
 const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const location = useLocation();
+  const { signOut, user } = useAuth();
 
   return (
     <>
