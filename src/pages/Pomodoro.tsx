@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Timer, Play, Pause, RotateCcw, Settings } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 type TimerMode = "work" | "break";
 type PomodoroMode = "standard" | "custom";
@@ -12,7 +15,6 @@ const themes = [
   { name: "Rose", bg: "from-rose-900/40 to-background", accent: "text-destructive" },
 ];
 
-// Standard: 5 min work → 1 min break ratio (scales up)
 function getStandardBreak(workMin: number): number {
   return Math.max(1, Math.round(workMin / 5));
 }
@@ -27,6 +29,8 @@ const STANDARD_PRESETS = [
 ];
 
 const Pomodoro = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [pomoMode, setPomoMode] = useState<PomodoroMode>("standard");
   const [standardWork, setStandardWork] = useState(25);
   const [customWork, setCustomWork] = useState(25);
@@ -41,9 +45,10 @@ const Pomodoro = () => {
   const [display, setDisplay] = useState<DisplayStyle>("digital");
   const [themeIdx, setThemeIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [sessionsToday, setSessionsToday] = useState(0);
   const intervalRef = useRef<number | null>(null);
+  const sessionStartRef = useRef<Date | null>(null);
 
-  // Reset timer when pomo mode or work/break changes (only if not running)
   useEffect(() => {
     if (!running) {
       setSeconds(mode === "work" ? workMin * 60 : breakMin * 60);
@@ -53,12 +58,35 @@ const Pomodoro = () => {
   const totalSeconds = mode === "work" ? workMin * 60 : breakMin * 60;
   const progress = ((totalSeconds - seconds) / totalSeconds) * 100;
 
+  const saveSession = async (durationMinutes: number) => {
+    if (!user) return;
+    const { error } = await supabase.from("study_sessions").insert({
+      user_id: user.id,
+      subject: "Pomodoro",
+      duration_minutes: durationMinutes,
+      session_type: pomoMode,
+    });
+    if (!error) {
+      setSessionsToday((c) => c + 1);
+      toast({ title: "Session saved!", description: `${durationMinutes} min study session recorded.` });
+    }
+  };
+
   useEffect(() => {
+    if (running && mode === "work" && !sessionStartRef.current) {
+      sessionStartRef.current = new Date();
+    }
+
     if (running) {
       intervalRef.current = window.setInterval(() => {
         setSeconds((prev) => {
           if (prev <= 1) {
             setRunning(false);
+            if (mode === "work") {
+              // Work session completed — save it
+              saveSession(workMin);
+              sessionStartRef.current = null;
+            }
             const nextMode = mode === "work" ? "break" : "work";
             setMode(nextMode);
             return nextMode === "work" ? workMin * 60 : breakMin * 60;
@@ -70,8 +98,21 @@ const Pomodoro = () => {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [running, mode, workMin, breakMin]);
 
+  // Load today's session count
+  useEffect(() => {
+    if (!user) return;
+    const today = new Date().toISOString().split("T")[0];
+    supabase
+      .from("study_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("completed_at", `${today}T00:00:00`)
+      .then(({ count }) => setSessionsToday(count ?? 0));
+  }, [user]);
+
   const reset = () => {
     setRunning(false);
+    sessionStartRef.current = null;
     setSeconds(mode === "work" ? workMin * 60 : breakMin * 60);
   };
 
@@ -94,7 +135,6 @@ const Pomodoro = () => {
           <circle cx={cx} cy={cy} r="48" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3" />
           <circle cx={cx} cy={cy} r="47" fill="none" stroke="hsl(var(--border))" strokeWidth="1.5" />
           <circle cx={cx} cy={cy} r="44" fill="hsl(var(--card))" opacity="0.6" />
-
           {Array.from({ length: 12 }).map((_, i) => {
             const angle = (i * 30 - 90) * (Math.PI / 180);
             const outerR = 42, innerR = i % 3 === 0 ? 37 : 39;
@@ -104,7 +144,6 @@ const Pomodoro = () => {
                 stroke="hsl(var(--foreground))" strokeWidth={i % 3 === 0 ? "1.2" : "0.5"} strokeLinecap="round" />
             );
           })}
-
           {Array.from({ length: 60 }).map((_, i) => {
             if (i % 5 === 0) return null;
             const angle = (i * 6 - 90) * (Math.PI / 180);
@@ -114,7 +153,6 @@ const Pomodoro = () => {
                 stroke="hsl(var(--muted-foreground))" strokeWidth="0.3" />
             );
           })}
-
           {[12, 3, 6, 9].map((num) => {
             const i = num === 12 ? 0 : num;
             const angle = (i * 30 - 90) * (Math.PI / 180);
@@ -126,19 +164,16 @@ const Pomodoro = () => {
               </text>
             );
           })}
-
           <circle cx={cx} cy={cy} r="40" fill="none" stroke="hsl(var(--primary))" strokeWidth="2"
             strokeDasharray={`${2 * Math.PI * 40}`}
             strokeDashoffset={`${2 * Math.PI * 40 * (1 - progress / 100)}`}
             strokeLinecap="round" className="transition-all duration-1000"
             transform={`rotate(-90 ${cx} ${cy})`} opacity="0.4" />
-
           {(() => {
             const angle = (minuteAngle - 90) * (Math.PI / 180);
             return <line x1={cx} y1={cy} x2={cx + 28 * Math.cos(angle)} y2={cy + 28 * Math.sin(angle)}
               stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" className="transition-all duration-1000" />;
           })()}
-
           {(() => {
             const angle = (secondAngle - 90) * (Math.PI / 180);
             return (
@@ -150,7 +185,6 @@ const Pomodoro = () => {
               </>
             );
           })()}
-
           <circle cx={cx} cy={cy} r="2" fill="hsl(var(--foreground))" />
           <circle cx={cx} cy={cy} r="1" fill="hsl(var(--background))" />
         </svg>
@@ -171,6 +205,7 @@ const Pomodoro = () => {
           </h1>
           <p className="text-muted-foreground mt-1">
             {pomoMode === "standard" ? `${workMin} min work · ${breakMin} min break` : `Custom: ${workMin}m work · ${breakMin}m break`}
+            <span className="ml-2 text-xs text-primary font-medium">{sessionsToday} sessions today</span>
           </p>
         </div>
         <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg hover:bg-secondary transition-colors">
@@ -178,7 +213,6 @@ const Pomodoro = () => {
         </button>
       </div>
 
-      {/* Mode toggle */}
       <div className="flex gap-2 animate-fade-in">
         <button
           onClick={() => { setPomoMode("standard"); setRunning(false); setMode("work"); }}
@@ -194,7 +228,6 @@ const Pomodoro = () => {
         </button>
       </div>
 
-      {/* Standard presets or custom settings */}
       {pomoMode === "standard" ? (
         <div className="glass-card p-4 animate-fade-in">
           <label className="text-xs text-muted-foreground block mb-2">Preset (work / break)</label>
@@ -245,7 +278,6 @@ const Pomodoro = () => {
         )
       )}
 
-      {/* Display/theme settings for standard mode */}
       {pomoMode === "standard" && showSettings && (
         <div className="glass-card p-4 grid grid-cols-2 gap-4 animate-scale-in">
           <div>
