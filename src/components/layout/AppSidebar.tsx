@@ -54,6 +54,14 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
         </div>
         <p className="text-xs text-muted-foreground mt-1">3.2 / 5 hrs</p>
       </div>
+
+      <button
+        onClick={signOut}
+        className="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200"
+      >
+        <LogOut className="w-5 h-5" />
+        Sign Out
+      </button>
     </>
   );
 };
