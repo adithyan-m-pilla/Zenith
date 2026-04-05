@@ -1,8 +1,9 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Brain, BookOpen, Timer, BarChart3, Trophy, Menu } from "lucide-react";
+import { LayoutDashboard, Brain, BookOpen, Timer, BarChart3, Trophy, Menu, LogOut } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo.png";
 
 const navItems = [
@@ -16,6 +17,7 @@ const navItems = [
 
 const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const location = useLocation();
+  const { signOut, user } = useAuth();
 
   return (
     <>
@@ -52,6 +54,14 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
         </div>
         <p className="text-xs text-muted-foreground mt-1">3.2 / 5 hrs</p>
       </div>
+
+      <button
+        onClick={signOut}
+        className="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200"
+      >
+        <LogOut className="w-5 h-5" />
+        Sign Out
+      </button>
     </>
   );
 };
