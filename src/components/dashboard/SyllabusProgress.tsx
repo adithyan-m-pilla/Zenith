@@ -1,7 +1,8 @@
+import { useSyllabus } from "@/hooks/useSyllabus";
+
 const SyllabusProgress = () => {
-  const totalChapters = 62;
-  const completed = 35;
-  const percent = Math.round((completed / totalChapters) * 100);
+  const { totalChapters, completedChapters } = useSyllabus();
+  const percent = totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
 
   return (
     <div className="glass-card p-4 animate-fade-in">
@@ -15,7 +16,11 @@ const SyllabusProgress = () => {
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className="text-xs text-muted-foreground mt-2">{completed} of {totalChapters} chapters completed</p>
+      <p className="text-xs text-muted-foreground mt-2">
+        {totalChapters > 0
+          ? `${completedChapters} of ${totalChapters} chapters completed`
+          : "Add subjects in Syllabus to track progress"}
+      </p>
     </div>
   );
 };

@@ -1,12 +1,12 @@
 // Spaced repetition revision intervals in days
-// Day 0: Study, Day 1: 1st review, Day 3: 2nd, Day 5: 3rd, Day 7: 4th, Day 14: 5th, Day 30: 6th, Day 90: Final
-export const REVISION_INTERVALS = [1, 3, 5, 7, 14, 30, 90];
+// Day 0: Study, Day 1: 1st review, Day 3: 2nd, Day 5: 3rd, Day 7: 4th, Day 15: 5th, Day 30: 6th, Day 90: Final
+export const REVISION_INTERVALS = [1, 3, 5, 7, 15, 30, 90];
 
 export interface RevisionEntry {
   chapterName: string;
   subjectName: string;
-  completedDate: string; // ISO date string YYYY-MM-DD
-  revisionNumber: number; // which revision (0 = not yet revised, 1-7 = revision count)
+  completedDate: string;
+  revisionNumber: number;
 }
 
 export function getRevisionDueDate(completedDate: string, revisionIndex: number): string {
@@ -21,7 +21,7 @@ export function getRevisionLabel(revisionNumber: number): string {
     "2nd Review (Day 3)",
     "3rd Review (Day 5)",
     "4th Review (Day 7)",
-    "5th Review (Day 14)",
+    "5th Review (Day 15)",
     "6th Review (Day 30)",
     "Final Review (Day 90)",
   ];
@@ -29,7 +29,6 @@ export function getRevisionLabel(revisionNumber: number): string {
 }
 
 export function getDueRevisions(completedDate: string, revisionsCompleted: number, today: string): number | null {
-  // Returns the next revision index that is due, or null if none
   for (let i = revisionsCompleted; i < REVISION_INTERVALS.length; i++) {
     const dueDate = getRevisionDueDate(completedDate, i);
     if (dueDate <= today) {

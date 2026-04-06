@@ -25,17 +25,33 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const { toast } = useToast();
   const [showSettings, setShowSettings] = useState(false);
   const [displayName, setDisplayName] = useState("");
+  const [dailyGoalHours, setDailyGoalHours] = useState(5);
   const [saving, setSaving] = useState(false);
+  const [studiedToday, setStudiedToday] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("display_name")
+      .select("display_name, daily_goal_hours")
       .eq("user_id", user.id)
       .single()
       .then(({ data }) => {
         if (data?.display_name) setDisplayName(data.display_name);
+        if (data?.daily_goal_hours) setDailyGoalHours(Number(data.daily_goal_hours));
+      });
+
+    // Fetch today's study time
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    supabase
+      .from("study_sessions")
+      .select("duration_minutes")
+      .eq("user_id", user.id)
+      .gte("completed_at", todayStart.toISOString())
+      .then(({ data }) => {
+        const totalMin = (data || []).reduce((a: number, s: any) => a + (s.duration_minutes || 0), 0);
+        setStudiedToday(Math.round((totalMin / 60) * 10) / 10);
       });
   }, [user]);
 
@@ -44,7 +60,7 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ display_name: displayName })
+      .update({ display_name: displayName, daily_goal_hours: dailyGoalHours } as any)
       .eq("user_id", user.id);
     setSaving(false);
     if (error) {
@@ -55,11 +71,13 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
     }
   };
 
+  const goalPercent = dailyGoalHours > 0 ? Math.min(100, Math.round((studiedToday / dailyGoalHours) * 100)) : 0;
+
   return (
     <>
       <div className="flex items-center gap-3 px-3 py-4 mb-6">
         <img src={logo} alt="Zenith logo" className="w-10 h-10 rounded-xl object-cover" />
-        <h1 className="font-heading text-xl font-bold text-foreground">Zenith</h1>
+        <h1 className="font-heading text-xl font-bold text-primary">Zenith</h1>
       </div>
 
       <nav className="flex-1 space-y-1">
@@ -104,6 +122,17 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
               className="h-8 text-sm"
             />
           </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Daily Goal (hours)</label>
+            <Input
+              type="number"
+              min={1}
+              max={24}
+              value={dailyGoalHours}
+              onChange={(e) => setDailyGoalHours(Number(e.target.value))}
+              className="h-8 text-sm"
+            />
+          </div>
           <Button size="sm" className="w-full" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </Button>
@@ -122,9 +151,9 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
       <div className="glass-card p-4">
         <p className="text-xs text-muted-foreground mb-1">Daily Goal</p>
         <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-primary rounded-full transition-all" style={{ width: "65%" }} />
+          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${goalPercent}%` }} />
         </div>
-        <p className="text-xs text-muted-foreground mt-1">3.2 / 5 hrs</p>
+        <p className="text-xs text-muted-foreground mt-1">{studiedToday} / {dailyGoalHours} hrs</p>
       </div>
 
       <button
