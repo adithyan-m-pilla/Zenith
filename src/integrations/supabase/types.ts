@@ -14,10 +14,52 @@ export type Database = {
   }
   public: {
     Tables: {
+      chapters: {
+        Row: {
+          completed_date: string | null
+          created_at: string
+          id: string
+          is_completed: boolean
+          name: string
+          revisions_completed: number
+          subject_id: string
+          user_id: string
+        }
+        Insert: {
+          completed_date?: string | null
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          name: string
+          revisions_completed?: number
+          subject_id: string
+          user_id: string
+        }
+        Update: {
+          completed_date?: string | null
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          name?: string
+          revisions_completed?: number
+          subject_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapters_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string
+          daily_goal_hours: number
           display_name: string | null
           id: string
           level: number
@@ -28,6 +70,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          daily_goal_hours?: number
           display_name?: string | null
           id?: string
           level?: number
@@ -38,6 +81,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          daily_goal_hours?: number
           display_name?: string | null
           id?: string
           level?: number
@@ -106,6 +150,27 @@ export type Database = {
           subject?: string | null
           title?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subjects: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
           user_id?: string
         }
         Relationships: []
