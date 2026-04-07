@@ -1,16 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { Brain, Send, Sparkles, BookOpen, Lightbulb, HelpCircle, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { toast } from "sonner";
 
 type Level = "basic" | "moderate" | "hard" | "quiz";
 type Msg = { role: "user" | "assistant"; content: string };
 
 const levels: { key: Level; label: string; icon: React.ElementType; desc: string }[] = [
-  { key: "basic", label: "Basic", icon: BookOpen, desc: "Explains from the very fundamentals, even basics from earlier classes" },
-  { key: "moderate", label: "Moderate", icon: Sparkles, desc: "Standard explanations with definitions and examples" },
-  { key: "hard", label: "Challenge", icon: Lightbulb, desc: "Gives small clues so you figure it out yourself" },
-  { key: "quiz", label: "Quiz Me", icon: HelpCircle, desc: "Tests you on a chapter with progressive hints" },
+  { key: "basic", label: "Basic", icon: BookOpen, desc: "Explains from the very fundamentals" },
+  { key: "moderate", label: "Moderate", icon: Sparkles, desc: "Standard explanations with examples" },
+  { key: "hard", label: "Challenge", icon: Lightbulb, desc: "Small clues so you figure it out" },
+  { key: "quiz", label: "Quiz Me", icon: HelpCircle, desc: "Tests you with progressive hints" },
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -70,7 +73,6 @@ async function streamChat({
     }
   }
 
-  // flush
   if (buf.trim()) {
     for (let raw of buf.split("\n")) {
       if (!raw) continue;
@@ -135,41 +137,41 @@ const AITutor = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="animate-fade-in">
-        <h1 className="font-heading text-3xl font-bold text-foreground flex items-center gap-3">
-          <Brain className="w-8 h-8 text-primary" /> AI Tutor
+        <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2 sm:gap-3">
+          <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-primary" /> AI Tutor
         </h1>
-        <p className="text-muted-foreground mt-1">Your personal study companion</p>
+        <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Your personal study companion</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-in">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 animate-fade-in">
         {levels.map(({ key, label, icon: Icon, desc }) => (
           <button
             key={key}
             onClick={() => setActiveLevel(key)}
-            className={`glass-card p-4 text-left transition-all ${
+            className={`glass-card p-3 sm:p-4 text-left transition-all ${
               activeLevel === key ? "border-primary glow-primary" : "hover:border-muted-foreground/30"
             }`}
           >
-            <Icon className={`w-5 h-5 mb-2 ${activeLevel === key ? "text-primary" : "text-muted-foreground"}`} />
-            <h4 className="font-heading text-sm font-semibold text-foreground">{label}</h4>
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{desc}</p>
+            <Icon className={`w-4 h-4 sm:w-5 sm:h-5 mb-1.5 sm:mb-2 ${activeLevel === key ? "text-primary" : "text-muted-foreground"}`} />
+            <h4 className="font-heading text-xs sm:text-sm font-semibold text-foreground">{label}</h4>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">{desc}</p>
           </button>
         ))}
       </div>
 
-      <div className="glass-card flex flex-col h-[450px] animate-fade-in">
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="glass-card flex flex-col h-[350px] sm:h-[450px] animate-fade-in">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
           {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+            <div className="flex items-center justify-center h-full text-muted-foreground text-xs sm:text-sm">
               Choose a mode and ask me anything! 🎓
             </div>
           )}
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm ${
+                className={`max-w-[85%] sm:max-w-[80%] px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm ${
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground rounded-br-md"
                     : "bg-secondary text-secondary-foreground rounded-bl-md"
@@ -177,7 +179,9 @@ const AITutor = () => {
               >
                 {msg.role === "assistant" ? (
                   <div className="prose prose-sm prose-invert max-w-none">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
                 ) : (
                   msg.content
@@ -193,19 +197,19 @@ const AITutor = () => {
             </div>
           )}
         </div>
-        <div className="border-t border-border p-3 flex gap-2">
+        <div className="border-t border-border p-2 sm:p-3 flex gap-2">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Ask anything..."
             disabled={isLoading}
-            className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+            className="flex-1 bg-secondary rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
           />
           <button
             onClick={handleSend}
             disabled={isLoading}
-            className="bg-primary text-primary-foreground p-2.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="bg-primary text-primary-foreground p-2 sm:p-2.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
           </button>
