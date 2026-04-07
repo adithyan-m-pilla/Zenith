@@ -20,7 +20,7 @@ const Index = () => {
       .from("profiles")
       .select("display_name")
       .eq("user_id", user.id)
-      .single()
+      .maybeSingle()
       .then(({ data }) => {
         if (data?.display_name) setDisplayName(data.display_name);
       });
@@ -29,11 +29,11 @@ const Index = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="animate-fade-in">
-        <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
+        <h1 className="font-heading text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
           {greeting}, <span className="text-primary">{displayName || "Scholar"}</span> 👋
         </h1>
-        <p className="text-muted-foreground mt-1">{todayFormatted}</p>
-        <p className="text-muted-foreground text-sm">Let's make today productive.</p>
+        <p className="text-muted-foreground mt-1 text-xs sm:text-sm">{todayFormatted}</p>
+        <p className="text-muted-foreground text-xs sm:text-sm">Let's make today productive.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

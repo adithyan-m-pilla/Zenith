@@ -1,5 +1,7 @@
 import { Trophy, Zap, CheckCircle2, Circle, Sparkles, Clock } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const challengePool = [
   "Study for 1 hour straight",
@@ -76,19 +78,53 @@ function formatCountdown(ms: number) {
 }
 
 const Rewards = () => {
+  const { user } = useAuth();
   const [totalXP, setTotalXP] = useState(0);
+  const [dbLoaded, setDbLoaded] = useState(false);
   const [todayKey, setTodayKey] = useState(getTodayKey);
   const [countdown, setCountdown] = useState(getTimeUntilMidnight());
+
+  // Load XP from database on mount
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("xp, level")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setTotalXP(data.xp || 0);
+        setDbLoaded(true);
+      });
+  }, [user]);
+
+  // Save XP to database whenever it changes
+  const saveXP = useCallback(async (xp: number) => {
+    if (!user) return;
+    let computedXP = xp;
+    let lvl = 0;
+    while (lvl < 49) {
+      const req = xpPerLevel(lvl);
+      if (computedXP < req) break;
+      computedXP -= req;
+      lvl++;
+    }
+    await supabase
+      .from("profiles")
+      .update({ xp: xp, level: lvl + 1 })
+      .eq("user_id", user.id);
+  }, [user]);
+
+  useEffect(() => {
+    if (dbLoaded && user) saveXP(totalXP);
+  }, [totalXP, dbLoaded, user, saveXP]);
 
   // Countdown timer + midnight reset
   useEffect(() => {
     const interval = setInterval(() => {
-      const remaining = getTimeUntilMidnight();
-      setCountdown(remaining);
+      setCountdown(getTimeUntilMidnight());
       const newKey = getTodayKey();
-      if (newKey !== todayKey) {
-        setTodayKey(newKey);
-      }
+      if (newKey !== todayKey) setTodayKey(newKey);
     }, 1000);
     return () => clearInterval(interval);
   }, [todayKey]);
@@ -114,7 +150,6 @@ const Rewards = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
 
-  // Reset completed challenges when day changes
   useEffect(() => {
     const saved = localStorage.getItem(`zenith-challenges-${todayKey}`);
     setCompletedChallenges(saved ? new Set(JSON.parse(saved)) : new Set());
@@ -130,8 +165,7 @@ const Rewards = () => {
         next.add(idx);
         setTotalXP((x) => x + 50);
       }
-      const arr = Array.from(next);
-      localStorage.setItem(`zenith-challenges-${todayKey}`, JSON.stringify(arr));
+      localStorage.setItem(`zenith-challenges-${todayKey}`, JSON.stringify(Array.from(next)));
       return next;
     });
   };
@@ -148,8 +182,8 @@ const Rewards = () => {
 
       <div className="glass-card p-4 sm:p-5 animate-fade-in">
         <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-warning" /> Today's Challenges
+          <h3 className="font-heading font-semibold text-foreground flex items-center gap-2 text-sm sm:text-base">
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-warning" /> Today's Challenges
           </h3>
           <span className="text-xs text-muted-foreground ml-auto flex items-center gap-2">
             {completedChallenges.size}/5 • +50 XP each
@@ -176,7 +210,7 @@ const Rewards = () => {
               <span className={`text-xs sm:text-sm flex-1 ${completedChallenges.has(idx) ? "line-through text-muted-foreground" : "text-foreground"}`}>
                 {challenge}
               </span>
-              <span className="text-[10px] sm:text-xs text-primary ml-auto font-medium shrink-0">+50 XP</span>
+              <span className="text-[10px] sm:text-xs text-primary font-medium shrink-0">+50 XP</span>
             </button>
           ))}
         </div>
