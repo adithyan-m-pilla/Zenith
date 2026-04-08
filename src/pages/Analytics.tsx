@@ -3,7 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, startOfWeek, addDays, startOfDay } from "date-fns";
 
 interface DayData {
   day: string;
@@ -21,13 +21,14 @@ const Analytics = () => {
     if (!user) return;
 
     const fetchData = async () => {
-      const sevenDaysAgo = startOfDay(subDays(new Date(), 6));
+      // Start from Monday of the current week
+      const mondayStart = startOfDay(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
       const { data, error } = await supabase
         .from("study_sessions")
         .select("duration_minutes, completed_at")
         .eq("user_id", user.id)
-        .gte("completed_at", sevenDaysAgo.toISOString())
+        .gte("completed_at", mondayStart.toISOString())
         .order("completed_at", { ascending: true });
 
       if (error || !data) {
@@ -37,11 +38,14 @@ const Analytics = () => {
 
       setTotalSessions(data.length);
 
-      // Group by day
+      // Build Mon-Sun map
       const dayMap: Record<string, number> = {};
+      const dayOrder: string[] = [];
       for (let i = 0; i < 7; i++) {
-        const d = subDays(new Date(), 6 - i);
-        dayMap[format(d, "EEE")] = 0;
+        const d = addDays(mondayStart, i);
+        const label = format(d, "EEE");
+        dayMap[label] = 0;
+        dayOrder.push(label);
       }
 
       data.forEach((s) => {
@@ -52,10 +56,10 @@ const Analytics = () => {
       });
 
       setWeekData(
-        Object.entries(dayMap).map(([day, mins]) => ({
+        dayOrder.map((day) => ({
           day,
-          hours: Math.round((mins / 60) * 10) / 10,
-          minutes: mins,
+          hours: Math.round((dayMap[day] / 60) * 10) / 10,
+          minutes: dayMap[day],
         }))
       );
       setLoading(false);
@@ -80,10 +84,10 @@ const Analytics = () => {
   return (
     <div className="space-y-6">
       <div className="animate-fade-in">
-        <h1 className="font-heading text-3xl font-bold text-foreground flex items-center gap-3">
-          <BarChart3 className="w-8 h-8 text-primary" /> Analytics
+        <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-3">
+          <BarChart3 className="w-7 h-7 sm:w-8 sm:h-8 text-primary" /> Analytics
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-muted-foreground mt-1 text-sm">
           {totalSessions} sessions · {Math.round(totalMinutes / 60 * 10) / 10} hrs this week
         </p>
       </div>
@@ -98,7 +102,7 @@ const Analytics = () => {
         </div>
       ) : (
         <>
-          <div className="glass-card p-5 animate-fade-in">
+          <div className="glass-card p-4 sm:p-5 animate-fade-in">
             <h3 className="font-heading font-semibold text-foreground mb-4">This Week</h3>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={weekData}>
@@ -115,7 +119,7 @@ const Analytics = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 animate-fade-in">
             {stats.map(({ label, value, icon: Icon, desc }) => (
-              <div key={label} className="glass-card p-5">
+              <div key={label} className="glass-card p-4 sm:p-5">
                 <Icon className="w-5 h-5 text-primary mb-2" />
                 <p className="font-heading text-2xl font-bold text-foreground">{value}</p>
                 <p className="text-sm font-medium text-foreground">{label}</p>

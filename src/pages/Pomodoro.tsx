@@ -28,30 +28,39 @@ const STANDARD_PRESETS = [
   { label: "120 / 30", work: 120 },
 ];
 
-const LONG_BREAK_AFTER = 4; // sessions before long break
+const LONG_BREAK_AFTER = 4;
 const LONG_BREAK_MIN = 15;
 
 function playNotificationSound() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const playBeep = (freq: number, startTime: number, duration: number) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.3, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-      osc.start(startTime);
-      osc.stop(startTime + duration);
-    };
-    playBeep(800, ctx.currentTime, 0.2);
-    playBeep(1000, ctx.currentTime + 0.25, 0.2);
-    playBeep(800, ctx.currentTime + 0.5, 0.3);
+    // Resume context in case it's suspended (background tab)
+    ctx.resume().then(() => {
+      const playBeep = (freq: number, startTime: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.3, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+      playBeep(800, ctx.currentTime, 0.2);
+      playBeep(1000, ctx.currentTime + 0.25, 0.2);
+      playBeep(800, ctx.currentTime + 0.5, 0.3);
+    });
+
+    // Also try Notification API for background tabs
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Zenith Timer", { body: "Your timer has finished!" });
+    } else if ("Notification" in window && Notification.permission !== "denied") {
+      Notification.requestPermission();
+    }
   } catch {}
 }
 
-// Persist timer state in localStorage
 const TIMER_KEY = "zenith-pomodoro-timer";
 
 interface TimerState {
@@ -85,9 +94,9 @@ const Pomodoro = () => {
   const savedState = useRef(loadTimerState());
 
   const [pomoMode, setPomoMode] = useState<PomodoroMode>(savedState.current?.pomoMode ?? "standard");
-  const [standardWork, setStandardWork] = useState(25);
-  const [customWork, setCustomWork] = useState(25);
-  const [customBreak, setCustomBreak] = useState(5);
+  const [standardWork, setStandardWork] = useState(savedState.current?.pomoMode === "standard" ? (savedState.current?.workMin ?? 25) : 25);
+  const [customWork, setCustomWork] = useState(savedState.current?.pomoMode === "custom" ? (savedState.current?.workMin ?? 25) : 25);
+  const [customBreak, setCustomBreak] = useState(savedState.current?.pomoMode === "custom" ? (savedState.current?.breakMin ?? 5) : 5);
 
   const workMin = pomoMode === "standard" ? standardWork : customWork;
   const breakMin = pomoMode === "standard" ? getStandardBreak(standardWork) : customBreak;
@@ -132,12 +141,12 @@ const Pomodoro = () => {
     }
   }, [user, pomoMode, toast]);
 
-  // Main timer loop
+  // Use endTime-based calculation so it works across tabs
   useEffect(() => {
     if (running) {
-      // Save state to localStorage
+      const endTime = Date.now() + seconds * 1000;
       saveTimerState({
-        endTime: Date.now() + seconds * 1000,
+        endTime,
         mode,
         workMin,
         breakMin,
@@ -146,62 +155,55 @@ const Pomodoro = () => {
       });
 
       intervalRef.current = window.setInterval(() => {
-        setSeconds((prev) => {
-          if (prev <= 1) {
-            // Timer finished
-            playNotificationSound();
+        const remaining = Math.ceil((endTime - Date.now()) / 1000);
+        
+        if (remaining <= 0) {
+          playNotificationSound();
 
-            if (mode === "work") {
-              saveSession(workMin);
-              const newConsecutive = consecutiveWork + 1;
-              setConsecutiveWork(newConsecutive);
+          if (mode === "work") {
+            saveSession(workMin);
+            const newConsecutive = consecutiveWork + 1;
+            setConsecutiveWork(newConsecutive);
 
-              // Check for long break
-              const isLongBreak = newConsecutive > 0 && newConsecutive % LONG_BREAK_AFTER === 0;
-              const nextBreak = isLongBreak ? LONG_BREAK_MIN : breakMin;
+            const isLongBreak = newConsecutive > 0 && newConsecutive % LONG_BREAK_AFTER === 0;
+            const nextBreak = isLongBreak ? LONG_BREAK_MIN : breakMin;
 
-              setMode("break");
-              toast({
-                title: isLongBreak ? "🎉 Long break time!" : "☕ Break time!",
-                description: `Take a ${nextBreak} minute break.`,
-              });
+            setMode("break");
+            setSeconds(nextBreak * 60);
+            toast({
+              title: isLongBreak ? "🎉 Long break time!" : "☕ Break time!",
+              description: `Take a ${nextBreak} minute break.`,
+            });
 
-              // Save new state
-              saveTimerState({
-                endTime: Date.now() + nextBreak * 60 * 1000,
-                mode: "break",
-                workMin,
-                breakMin: nextBreak,
-                pomoMode,
-                consecutiveWork: newConsecutive,
-              });
+            // Force re-mount of effect with new endTime
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            setRunning(false);
+            setTimeout(() => setRunning(true), 50);
+          } else {
+            setMode("work");
+            setSeconds(workMin * 60);
+            toast({ title: "💪 Back to work!", description: `Starting ${workMin} minute focus session.` });
 
-              return nextBreak * 60;
-            } else {
-              // Break finished, auto-start work
-              setMode("work");
-              toast({ title: "💪 Back to work!", description: `Starting ${workMin} minute focus session.` });
-
-              saveTimerState({
-                endTime: Date.now() + workMin * 60 * 1000,
-                mode: "work",
-                workMin,
-                breakMin,
-                pomoMode,
-                consecutiveWork,
-              });
-
-              return workMin * 60;
-            }
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            setRunning(false);
+            setTimeout(() => setRunning(true), 50);
           }
-          return prev - 1;
-        });
-      }, 1000);
+        } else {
+          setSeconds(remaining);
+        }
+      }, 500); // Use 500ms for better accuracy when switching tabs
     } else {
-      saveTimerState(null);
+      if (!savedState.current) saveTimerState(null);
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [running, mode, workMin, breakMin, pomoMode, consecutiveWork, saveSession, toast]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Load today's session count and total minutes
   useEffect(() => {
@@ -235,9 +237,7 @@ const Pomodoro = () => {
   const studiedTodayHrs = Math.round((studiedTodayMin / 60) * 10) / 10;
 
   const renderAnalog = () => {
-    // Fix: minute hand goes clockwise as time progresses
     const minuteAngle = ((totalSeconds - seconds) / totalSeconds) * 360;
-    // Fix: second hand goes clockwise - use elapsed seconds within the minute
     const elapsedInMinute = 60 - (seconds % 60);
     const secondAngle = ((elapsedInMinute % 60) / 60) * 360;
     const cx = 50, cy = 50;
@@ -361,12 +361,12 @@ const Pomodoro = () => {
           <div className="glass-card p-3 sm:p-4 grid grid-cols-2 gap-3 sm:gap-4 animate-scale-in">
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Work (min)</label>
-              <input type="number" value={customWork} onChange={(e) => { setCustomWork(+e.target.value); if (!running) setMode("work"); }}
+              <input type="number" value={customWork} min={1} onChange={(e) => { const v = Math.max(1, parseInt(e.target.value) || 1); setCustomWork(v); if (!running) setMode("work"); }}
                 className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Break (min)</label>
-              <input type="number" value={customBreak} onChange={(e) => setCustomBreak(+e.target.value)}
+              <input type="number" value={customBreak} min={1} onChange={(e) => { const v = Math.max(1, parseInt(e.target.value) || 1); setCustomBreak(v); }}
                 className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
