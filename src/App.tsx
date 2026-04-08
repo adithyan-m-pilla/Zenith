@@ -12,6 +12,7 @@ import Pomodoro from "./pages/Pomodoro";
 import Analytics from "./pages/Analytics";
 import Rewards from "./pages/Rewards";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -63,6 +64,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<AuthRoute />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/*" element={<ProtectedLayout />} />
           </Routes>
         </BrowserRouter>
