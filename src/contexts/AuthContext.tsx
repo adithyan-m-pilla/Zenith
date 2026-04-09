@@ -23,19 +23,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    const hasOAuthCallbackParams =
+      window.location.search.includes("code=") ||
+      window.location.search.includes("error=") ||
+      window.location.hash.includes("access_token") ||
+      window.location.hash.includes("type=recovery");
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        if (!isMounted) return;
         setSession(session);
         setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!isMounted) return;
 
-    return () => subscription.unsubscribe();
+      setSession(session);
+
+      if (session || !hasOAuthCallbackParams) {
+        setLoading(false);
+        return;
+      }
+
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        const { data: { session: nextSession } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+        if (nextSession) {
+          setSession(nextSession);
+          setLoading(false);
+          return;
+        }
+      }
+
+      setLoading(false);
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
