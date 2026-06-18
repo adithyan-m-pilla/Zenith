@@ -55,6 +55,33 @@ export type Database = {
           },
         ]
       }
+      friendships: {
+        Row: {
+          addressee_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          addressee_id: string
+          created_at?: string
+          id?: string
+          requester_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          addressee_id?: string
+          created_at?: string
+          id?: string
+          requester_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -62,9 +89,11 @@ export type Database = {
           daily_goal_hours: number
           display_name: string | null
           id: string
+          invite_code: string | null
           level: number
           updated_at: string
           user_id: string
+          username: string | null
           xp: number
         }
         Insert: {
@@ -73,9 +102,11 @@ export type Database = {
           daily_goal_hours?: number
           display_name?: string | null
           id?: string
+          invite_code?: string | null
           level?: number
           updated_at?: string
           user_id: string
+          username?: string | null
           xp?: number
         }
         Update: {
@@ -84,9 +115,11 @@ export type Database = {
           daily_goal_hours?: number
           display_name?: string | null
           id?: string
+          invite_code?: string | null
           level?: number
           updated_at?: string
           user_id?: string
+          username?: string | null
           xp?: number
         }
         Relationships: []
