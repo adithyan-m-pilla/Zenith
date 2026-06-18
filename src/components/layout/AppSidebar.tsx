@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Brain, BookOpen, Timer, BarChart3, Trophy, Menu, LogOut, Settings, X } from "lucide-react";
+import { LayoutDashboard, Brain, BookOpen, Timer, BarChart3, Trophy, Menu, LogOut, Settings, X, Users } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useState, useEffect } from "react";
