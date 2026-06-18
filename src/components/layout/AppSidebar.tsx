@@ -17,6 +17,7 @@ const navItems = [
   { to: "/pomodoro", icon: Timer, label: "Pomodoro" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/rewards", icon: Trophy, label: "Rewards" },
+  { to: "/friends", icon: Users, label: "Friends" },
 ];
 
 const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
