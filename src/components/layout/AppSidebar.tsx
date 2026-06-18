@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Brain, BookOpen, Timer, BarChart3, Trophy, Menu, LogOut, Settings, X } from "lucide-react";
+import { LayoutDashboard, Brain, BookOpen, Timer, BarChart3, Trophy, Menu, LogOut, Settings, X, Users } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useState, useEffect } from "react";
@@ -17,6 +17,7 @@ const navItems = [
   { to: "/pomodoro", icon: Timer, label: "Pomodoro" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/rewards", icon: Trophy, label: "Rewards" },
+  { to: "/friends", icon: Users, label: "Friends" },
 ];
 
 const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
