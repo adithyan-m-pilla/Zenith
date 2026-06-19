@@ -1,11 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState } from "react";
 import { Timer, Play, Pause, RotateCcw, Settings, Volume2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { usePomodoro, getStandardBreak } from "@/contexts/PomodoroContext";
 
-type TimerMode = "work" | "break";
-type PomodoroMode = "standard" | "custom";
 type DisplayStyle = "digital" | "analog" | "minimal";
 
 const themes = [
@@ -14,10 +10,6 @@ const themes = [
   { name: "Sunset", bg: "from-amber-900/40 to-background", accent: "text-warning" },
   { name: "Rose", bg: "from-rose-900/40 to-background", accent: "text-destructive" },
 ];
-
-function getStandardBreak(workMin: number): number {
-  return Math.max(1, Math.round(workMin / 5));
-}
 
 const STANDARD_PRESETS = [
   { label: "5 / 1", work: 5 },
@@ -29,203 +21,24 @@ const STANDARD_PRESETS = [
 ];
 
 const LONG_BREAK_AFTER = 4;
-const LONG_BREAK_MIN = 15;
-
-function playNotificationSound() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    // Resume context in case it's suspended (background tab)
-    ctx.resume().then(() => {
-      const playBeep = (freq: number, startTime: number, duration: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.3, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-        osc.start(startTime);
-        osc.stop(startTime + duration);
-      };
-      playBeep(800, ctx.currentTime, 0.2);
-      playBeep(1000, ctx.currentTime + 0.25, 0.2);
-      playBeep(800, ctx.currentTime + 0.5, 0.3);
-    });
-
-    // Also try Notification API for background tabs
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Zenith Timer", { body: "Your timer has finished!" });
-    } else if ("Notification" in window && Notification.permission !== "denied") {
-      Notification.requestPermission();
-    }
-  } catch {}
-}
-
-const TIMER_KEY = "zenith-pomodoro-timer";
-
-interface TimerState {
-  endTime: number;
-  mode: TimerMode;
-  workMin: number;
-  breakMin: number;
-  pomoMode: PomodoroMode;
-  consecutiveWork: number;
-}
-
-function saveTimerState(state: TimerState | null) {
-  if (state) localStorage.setItem(TIMER_KEY, JSON.stringify(state));
-  else localStorage.removeItem(TIMER_KEY);
-}
-
-function loadTimerState(): TimerState | null {
-  try {
-    const raw = localStorage.getItem(TIMER_KEY);
-    if (!raw) return null;
-    const state = JSON.parse(raw) as TimerState;
-    if (state.endTime <= Date.now()) return null;
-    return state;
-  } catch { return null; }
-}
 
 const Pomodoro = () => {
-  const { user } = useAuth();
-  const { toast } = useToast();
+  const {
+    pomoMode, setPomoMode,
+    standardWork, setStandardWork,
+    customWork, setCustomWork,
+    customBreak, setCustomBreak,
+    workMin, breakMin, mode, seconds, running, consecutiveWork,
+    sessionsToday, studiedTodayMin,
+    toggle, reset, skip,
+  } = usePomodoro();
 
-  const savedState = useRef(loadTimerState());
-
-  const [pomoMode, setPomoMode] = useState<PomodoroMode>(savedState.current?.pomoMode ?? "standard");
-  const [standardWork, setStandardWork] = useState(savedState.current?.pomoMode === "standard" ? (savedState.current?.workMin ?? 25) : 25);
-  const [customWork, setCustomWork] = useState(savedState.current?.pomoMode === "custom" ? (savedState.current?.workMin ?? 25) : 25);
-  const [customBreak, setCustomBreak] = useState(savedState.current?.pomoMode === "custom" ? (savedState.current?.breakMin ?? 5) : 5);
-
-  const workMin = pomoMode === "standard" ? standardWork : customWork;
-  const breakMin = pomoMode === "standard" ? getStandardBreak(standardWork) : customBreak;
-
-  const [mode, setMode] = useState<TimerMode>(savedState.current?.mode ?? "work");
-  const [seconds, setSeconds] = useState(() => {
-    const s = savedState.current;
-    if (s) return Math.max(0, Math.ceil((s.endTime - Date.now()) / 1000));
-    return workMin * 60;
-  });
-  const [running, setRunning] = useState(() => !!savedState.current);
   const [display, setDisplay] = useState<DisplayStyle>("digital");
   const [themeIdx, setThemeIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
-  const [sessionsToday, setSessionsToday] = useState(0);
-  const [studiedTodayMin, setStudiedTodayMin] = useState(0);
-  const [consecutiveWork, setConsecutiveWork] = useState(savedState.current?.consecutiveWork ?? 0);
-  const intervalRef = useRef<number | null>(null);
-
-  // Update seconds when preset changes (only if not running)
-  useEffect(() => {
-    if (!running) {
-      setSeconds(mode === "work" ? workMin * 60 : breakMin * 60);
-    }
-  }, [workMin, breakMin, pomoMode]);
 
   const totalSeconds = mode === "work" ? workMin * 60 : breakMin * 60;
   const progress = ((totalSeconds - seconds) / totalSeconds) * 100;
-
-  const saveSession = useCallback(async (durationMinutes: number) => {
-    if (!user || durationMinutes <= 0) return;
-    const { error } = await supabase.from("study_sessions").insert({
-      user_id: user.id,
-      subject: "Pomodoro",
-      duration_minutes: durationMinutes,
-      session_type: pomoMode,
-    });
-    if (!error) {
-      setSessionsToday((c) => c + 1);
-      setStudiedTodayMin((c) => c + durationMinutes);
-      toast({ title: "Session saved!", description: `${durationMinutes} min study session recorded.` });
-    }
-  }, [user, pomoMode, toast]);
-
-  // Use endTime-based calculation so it works across tabs
-  useEffect(() => {
-    if (running) {
-      const endTime = Date.now() + seconds * 1000;
-      saveTimerState({
-        endTime,
-        mode,
-        workMin,
-        breakMin,
-        pomoMode,
-        consecutiveWork,
-      });
-
-      intervalRef.current = window.setInterval(() => {
-        const remaining = Math.ceil((endTime - Date.now()) / 1000);
-        
-        if (remaining <= 0) {
-          playNotificationSound();
-
-          if (mode === "work") {
-            saveSession(workMin);
-            const newConsecutive = consecutiveWork + 1;
-            setConsecutiveWork(newConsecutive);
-
-            const isLongBreak = newConsecutive > 0 && newConsecutive % LONG_BREAK_AFTER === 0;
-            const nextBreak = isLongBreak ? LONG_BREAK_MIN : breakMin;
-
-            setMode("break");
-            setSeconds(nextBreak * 60);
-            toast({
-              title: isLongBreak ? "🎉 Long break time!" : "☕ Break time!",
-              description: `Take a ${nextBreak} minute break.`,
-            });
-
-            // Force re-mount of effect with new endTime
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            setRunning(false);
-            setTimeout(() => setRunning(true), 50);
-          } else {
-            setMode("work");
-            setSeconds(workMin * 60);
-            toast({ title: "💪 Back to work!", description: `Starting ${workMin} minute focus session.` });
-
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            setRunning(false);
-            setTimeout(() => setRunning(true), 50);
-          }
-        } else {
-          setSeconds(remaining);
-        }
-      }, 500); // Use 500ms for better accuracy when switching tabs
-    } else {
-      if (!savedState.current) saveTimerState(null);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [running, mode, workMin, breakMin, pomoMode, consecutiveWork, saveSession, toast]);
-
-  // Request notification permission on mount
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  // Load today's session count and total minutes
-  useEffect(() => {
-    if (!user) return;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    supabase
-      .from("study_sessions")
-      .select("id, duration_minutes")
-      .eq("user_id", user.id)
-      .gte("completed_at", today.toISOString())
-      .then(({ data }) => {
-        setSessionsToday(data?.length ?? 0);
-        setStudiedTodayMin((data || []).reduce((a, s) => a + (s.duration_minutes || 0), 0));
-      });
-  }, [user]);
-
-  const reset = () => {
-    setRunning(false);
-    saveTimerState(null);
-    setSeconds(mode === "work" ? workMin * 60 : breakMin * 60);
-  };
 
   const formatTime = (s: number) => {
     const min = Math.floor(s / 60);
@@ -328,13 +141,13 @@ const Pomodoro = () => {
 
       <div className="flex gap-2 animate-fade-in">
         <button
-          onClick={() => { setPomoMode("standard"); if (!running) { setMode("work"); } }}
+          onClick={() => setPomoMode("standard")}
           className={`flex-1 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-all ${pomoMode === "standard" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
         >
           Standard
         </button>
         <button
-          onClick={() => { setPomoMode("custom"); if (!running) { setMode("work"); } }}
+          onClick={() => setPomoMode("custom")}
           className={`flex-1 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-all ${pomoMode === "custom" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
         >
           Custom
@@ -348,7 +161,7 @@ const Pomodoro = () => {
             {STANDARD_PRESETS.map((p) => (
               <button
                 key={p.work}
-                onClick={() => { if (!running) { setStandardWork(p.work); setMode("work"); } }}
+                onClick={() => { if (!running) setStandardWork(p.work); }}
                 className={`py-2 px-2 sm:px-3 rounded-lg text-xs font-medium transition-all ${standardWork === p.work ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
               >
                 {p.label}
@@ -361,12 +174,12 @@ const Pomodoro = () => {
           <div className="glass-card p-3 sm:p-4 grid grid-cols-2 gap-3 sm:gap-4 animate-scale-in">
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Work (min)</label>
-              <input type="number" value={customWork} min={1} onChange={(e) => { const v = Math.max(1, parseInt(e.target.value) || 1); setCustomWork(v); if (!running) setMode("work"); }}
+              <input type="number" value={customWork} min={1} onChange={(e) => setCustomWork(Math.max(1, parseInt(e.target.value) || 1))}
                 className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Break (min)</label>
-              <input type="number" value={customBreak} min={1} onChange={(e) => { const v = Math.max(1, parseInt(e.target.value) || 1); setCustomBreak(v); }}
+              <input type="number" value={customBreak} min={1} onChange={(e) => setCustomBreak(Math.max(1, parseInt(e.target.value) || 1))}
                 className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
@@ -418,19 +231,13 @@ const Pomodoro = () => {
             <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 text-foreground" />
           </button>
           <button
-            onClick={() => setRunning(!running)}
+            onClick={toggle}
             className="p-4 sm:p-5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity animate-pulse-glow"
           >
             {running ? <Pause className="w-6 h-6 sm:w-7 sm:h-7" /> : <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />}
           </button>
           <button
-            onClick={() => {
-              const nextMode = mode === "work" ? "break" : "work";
-              setMode(nextMode);
-              setSeconds(nextMode === "work" ? workMin * 60 : breakMin * 60);
-              setRunning(false);
-              saveTimerState(null);
-            }}
+            onClick={skip}
             className="px-3 sm:px-4 py-2 rounded-full bg-secondary text-xs sm:text-sm text-foreground hover:bg-secondary/80 transition-colors"
           >
             {mode === "work" ? "Skip to Break" : "Skip to Work"}
@@ -438,7 +245,6 @@ const Pomodoro = () => {
         </div>
       </div>
 
-      {/* Total hours studied today bar */}
       <div className="glass-card p-3 sm:p-4 animate-fade-in">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">

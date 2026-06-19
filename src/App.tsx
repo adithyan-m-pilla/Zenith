@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PomodoroProvider } from "@/contexts/PomodoroContext";
 import AppSidebar from "@/components/layout/AppSidebar";
 import Index from "./pages/Index";
 import AITutor from "./pages/AITutor";
@@ -32,21 +33,23 @@ const ProtectedLayout = () => {
   if (!session) return <Navigate to="/auth" replace />;
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <main className="flex-1 md:ml-64 p-6 pt-16 md:pt-6">
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/ai-tutor" element={<AITutor />} />
-          <Route path="/syllabus" element={<Syllabus />} />
-          <Route path="/pomodoro" element={<Pomodoro />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/rewards" element={<Rewards />} />
-          <Route path="/friends" element={<Friends />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </main>
-    </div>
+    <PomodoroProvider>
+      <div className="flex min-h-screen">
+        <AppSidebar />
+        <main className="flex-1 md:ml-64 p-6 pt-16 md:pt-6">
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/ai-tutor" element={<AITutor />} />
+            <Route path="/syllabus" element={<Syllabus />} />
+            <Route path="/pomodoro" element={<Pomodoro />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/rewards" element={<Rewards />} />
+            <Route path="/friends" element={<Friends />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
+      </div>
+    </PomodoroProvider>
   );
 };
 
