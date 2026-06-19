@@ -203,14 +203,28 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // Save partial work time when interrupting an in-progress work session
+  const savePartialIfWork = () => {
+    if (mode !== "work" || endTime === null) return;
+    const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+    const elapsedSec = workMin * 60 - remaining;
+    const minutes = Math.round(elapsedSec / 60);
+    if (minutes >= 1) saveSession(minutes);
+  };
+
   const start = () => setEndTime(Date.now() + seconds * 1000);
-  const pause = () => setEndTime(null);
+  const pause = () => {
+    savePartialIfWork();
+    setEndTime(null);
+  };
   const toggle = () => (running ? pause() : start());
   const reset = () => {
+    savePartialIfWork();
     setEndTime(null);
     setSeconds((mode === "work" ? workMin : breakMin) * 60);
   };
   const skip = () => {
+    savePartialIfWork();
     const next: TimerMode = mode === "work" ? "break" : "work";
     setMode(next);
     setSeconds((next === "work" ? workMin : breakMin) * 60);
