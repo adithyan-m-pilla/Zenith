@@ -318,7 +318,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   }, [pomoMode]);
 
   const start = () => {
-    savedMinutesRef.current = 0;
+    // Only reset saved-minutes counter when starting a fresh session (not resuming a paused one)
+    const fullSec = (mode === "work" ? workMin : breakMin) * 60;
+    if (seconds >= fullSec) savedMinutesRef.current = 0;
     setEndTime(Date.now() + seconds * 1000);
   };
   const pause = () => {
