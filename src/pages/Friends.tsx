@@ -14,6 +14,14 @@ type Profile = {
   username: string | null;
   invite_code: string | null;
   avatar_url: string | null;
+  is_studying?: boolean | null;
+  studying_since?: string | null;
+};
+
+// Consider a friend "studying" only if they started within the last 2h (guards against stale flags)
+const isActivelyStudying = (p?: Profile | null) => {
+  if (!p?.is_studying || !p.studying_since) return false;
+  return Date.now() - new Date(p.studying_since).getTime() < 2 * 60 * 60 * 1000;
 };
 
 type Friendship = {
