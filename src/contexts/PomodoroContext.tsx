@@ -110,7 +110,24 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   const [sessionsToday, setSessionsToday] = useState(0);
   const [studiedTodayMin, setStudiedTodayMin] = useState(0);
 
+  // Track minutes already saved for the current work session, so we never double-count
+  const savedMinutesRef = useRef(0);
+  // Refs for use inside unload listeners (which capture state once)
+  const stateRef = useRef({ mode, endTime, workMin, userId: user?.id as string | undefined });
+  stateRef.current = { mode, endTime, workMin, userId: user?.id };
+
   const running = endTime !== null;
+
+  // Reset saved-minutes counter whenever a new work session begins
+  useEffect(() => {
+    if (mode === "work" && endTime !== null) {
+      const fullSec = workMin * 60;
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+      // If timer was just (re)started from full, reset counter
+      if (fullSec - remaining < 2) savedMinutesRef.current = 0;
+    }
+    if (mode !== "work") savedMinutesRef.current = 0;
+  }, [mode, endTime, workMin]);
 
   // Persist state on changes
   useEffect(() => {
@@ -156,7 +173,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       if (remaining <= 0) {
         playNotificationSound();
         if (mode === "work") {
-          saveSession(workMin);
+          const remainingMin = Math.max(0, workMin - savedMinutesRef.current);
+          if (remainingMin > 0) saveSession(remainingMin);
+          savedMinutesRef.current = 0;
           const next = consecutiveWork + 1;
           setConsecutiveWork(next);
           const isLong = next % LONG_BREAK_AFTER === 0;
@@ -208,11 +227,80 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     if (mode !== "work" || endTime === null) return;
     const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
     const elapsedSec = workMin * 60 - remaining;
-    const minutes = Math.round(elapsedSec / 60);
-    if (minutes >= 1) saveSession(minutes);
+    const totalMinutes = Math.round(elapsedSec / 60);
+    const delta = totalMinutes - savedMinutesRef.current;
+    if (delta >= 1) {
+      savedMinutesRef.current = totalMinutes;
+      saveSession(delta);
+    }
   };
 
-  const start = () => setEndTime(Date.now() + seconds * 1000);
+  // Auto-save partial progress every minute, even if user never pauses
+  useEffect(() => {
+    if (endTime === null || mode !== "work") return;
+    const id = window.setInterval(() => savePartialIfWork(), 60_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endTime, mode, workMin]);
+
+  // On tab close / refresh: save remaining partial work time via keepalive fetch
+  useEffect(() => {
+    const flush = () => {
+      const { mode: m, endTime: et, workMin: wm, userId } = stateRef.current;
+      if (!userId || m !== "work" || et === null) return;
+      const remaining = Math.max(0, Math.ceil((et - Date.now()) / 1000));
+      const elapsedSec = wm * 60 - remaining;
+      const totalMinutes = Math.round(elapsedSec / 60);
+      const delta = totalMinutes - savedMinutesRef.current;
+      if (delta < 1) return;
+      savedMinutesRef.current = totalMinutes;
+      try {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/study_sessions`;
+        const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const session = (supabase.auth as any).currentSession?.() ?? null;
+        // Fallback to localStorage-stored token
+        let token = apikey;
+        try {
+          const keys = Object.keys(localStorage).filter((k) => k.startsWith("sb-") && k.endsWith("-auth-token"));
+          if (keys[0]) {
+            const parsed = JSON.parse(localStorage.getItem(keys[0]) || "{}");
+            if (parsed?.access_token) token = parsed.access_token;
+          }
+        } catch {}
+        fetch(url, {
+          method: "POST",
+          keepalive: true,
+          headers: {
+            "Content-Type": "application/json",
+            apikey,
+            Authorization: `Bearer ${token}`,
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            subject: "Pomodoro",
+            duration_minutes: delta,
+            session_type: pomoMode,
+          }),
+        }).catch(() => {});
+      } catch {}
+    };
+    const onHide = () => flush();
+    const onVis = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("beforeunload", onHide);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("beforeunload", onHide);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [pomoMode]);
+
+  const start = () => {
+    savedMinutesRef.current = 0;
+    setEndTime(Date.now() + seconds * 1000);
+  };
   const pause = () => {
     savePartialIfWork();
     setEndTime(null);
