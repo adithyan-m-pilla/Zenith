@@ -112,6 +112,9 @@ export default function Friends() {
 
   useEffect(() => {
     loadAll();
+    if (!user) return;
+    const id = window.setInterval(loadAll, 30_000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
