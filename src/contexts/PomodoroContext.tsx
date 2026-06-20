@@ -173,7 +173,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       if (remaining <= 0) {
         playNotificationSound();
         if (mode === "work") {
-          saveSession(workMin);
+          const remainingMin = Math.max(0, workMin - savedMinutesRef.current);
+          if (remainingMin > 0) saveSession(remainingMin);
+          savedMinutesRef.current = 0;
           const next = consecutiveWork + 1;
           setConsecutiveWork(next);
           const isLong = next % LONG_BREAK_AFTER === 0;
