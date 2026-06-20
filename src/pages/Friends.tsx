@@ -67,7 +67,7 @@ export default function Friends() {
     if (!user) return;
     const { data: myProfile } = await supabase
       .from("profiles")
-      .select("user_id, display_name, username, invite_code, avatar_url")
+      .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
       .eq("user_id", user.id)
       .maybeSingle();
     if (myProfile) {
@@ -88,7 +88,7 @@ export default function Friends() {
     if (otherIds.length) {
       const { data: ps } = await supabase
         .from("profiles")
-        .select("user_id, display_name, username, invite_code, avatar_url")
+        .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
         .in("user_id", otherIds);
       const map: Record<string, Profile> = {};
       (ps || []).forEach((p: any) => (map[p.user_id] = p));
@@ -127,7 +127,7 @@ export default function Friends() {
     (async () => {
       const { data: target } = await supabase
         .from("profiles")
-        .select("user_id, display_name, username, invite_code, avatar_url")
+        .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
         .eq("invite_code", code)
         .maybeSingle();
       window.history.replaceState({}, "", "/friends");
@@ -164,7 +164,7 @@ export default function Friends() {
     setSearching(true);
     const { data } = await supabase
       .from("profiles")
-      .select("user_id, display_name, username, invite_code, avatar_url")
+      .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
       .ilike("username", `%${q}%`)
       .neq("user_id", user.id)
       .limit(10);
