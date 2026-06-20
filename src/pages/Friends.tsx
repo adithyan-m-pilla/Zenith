@@ -406,11 +406,30 @@ export default function Friends() {
             const todayMin = sessions
               .filter((s) => s.user_id === fid && new Date(s.completed_at) >= todayStart)
               .reduce((a, s) => a + (s.duration_minutes || 0), 0);
+            const studying = isActivelyStudying(p);
             return (
               <div key={f.id} className="flex items-center justify-between p-3 rounded-md bg-muted/40">
-                <div>
-                  <p className="text-sm font-medium">{p?.display_name}</p>
-                  <p className="text-xs text-muted-foreground">@{p?.username} • {fmt(todayMin)} today</p>
+                <div className="flex items-center gap-3">
+                  <span className="relative inline-flex">
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${studying ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+                      title={studying ? "Currently studying" : "Offline"}
+                    />
+                    {studying && (
+                      <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-60" />
+                    )}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {p?.display_name}
+                      {studying && (
+                        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+                          Studying
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">@{p?.username} • {fmt(todayMin)} today</p>
+                  </div>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => remove(f.id)}>
                   <XIcon className="w-4 h-4" />
