@@ -142,11 +142,20 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [endTime, mode, workMin, breakMin, pomoMode, consecutiveWork, standardWork, customWork, customBreak]);
 
-  // When not running and durations change, sync seconds
+  // When not running and durations/mode change, sync seconds to full duration.
+  // Important: do NOT reset on pause — preserve the remaining time so resume continues.
+  const prevDurRef = useRef({ workMin, breakMin, mode });
   useEffect(() => {
-    if (endTime === null) {
+    if (endTime !== null) {
+      prevDurRef.current = { workMin, breakMin, mode };
+      return;
+    }
+    const prev = prevDurRef.current;
+    const changed = prev.workMin !== workMin || prev.breakMin !== breakMin || prev.mode !== mode;
+    if (changed) {
       setSeconds((mode === "work" ? workMin : breakMin) * 60);
     }
+    prevDurRef.current = { workMin, breakMin, mode };
   }, [workMin, breakMin, mode, endTime]);
 
   // Broadcast studying status to profile so friends can see online/offline-style indicator
@@ -309,7 +318,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   }, [pomoMode]);
 
   const start = () => {
-    savedMinutesRef.current = 0;
+    // Only reset saved-minutes counter when starting a fresh session (not resuming a paused one)
+    const fullSec = (mode === "work" ? workMin : breakMin) * 60;
+    if (seconds >= fullSec) savedMinutesRef.current = 0;
     setEndTime(Date.now() + seconds * 1000);
   };
   const pause = () => {
