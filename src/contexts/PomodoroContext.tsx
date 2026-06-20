@@ -110,7 +110,24 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   const [sessionsToday, setSessionsToday] = useState(0);
   const [studiedTodayMin, setStudiedTodayMin] = useState(0);
 
+  // Track minutes already saved for the current work session, so we never double-count
+  const savedMinutesRef = useRef(0);
+  // Refs for use inside unload listeners (which capture state once)
+  const stateRef = useRef({ mode, endTime, workMin, userId: user?.id as string | undefined });
+  stateRef.current = { mode, endTime, workMin, userId: user?.id };
+
   const running = endTime !== null;
+
+  // Reset saved-minutes counter whenever a new work session begins
+  useEffect(() => {
+    if (mode === "work" && endTime !== null) {
+      const fullSec = workMin * 60;
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+      // If timer was just (re)started from full, reset counter
+      if (fullSec - remaining < 2) savedMinutesRef.current = 0;
+    }
+    if (mode !== "work") savedMinutesRef.current = 0;
+  }, [mode, endTime, workMin]);
 
   // Persist state on changes
   useEffect(() => {
