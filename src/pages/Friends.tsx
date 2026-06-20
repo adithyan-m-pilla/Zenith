@@ -14,6 +14,14 @@ type Profile = {
   username: string | null;
   invite_code: string | null;
   avatar_url: string | null;
+  is_studying?: boolean | null;
+  studying_since?: string | null;
+};
+
+// Consider a friend "studying" only if they started within the last 2h (guards against stale flags)
+const isActivelyStudying = (p?: Profile | null) => {
+  if (!p?.is_studying || !p.studying_since) return false;
+  return Date.now() - new Date(p.studying_since).getTime() < 2 * 60 * 60 * 1000;
 };
 
 type Friendship = {
@@ -59,7 +67,7 @@ export default function Friends() {
     if (!user) return;
     const { data: myProfile } = await supabase
       .from("profiles")
-      .select("user_id, display_name, username, invite_code, avatar_url")
+      .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
       .eq("user_id", user.id)
       .maybeSingle();
     if (myProfile) {
@@ -80,7 +88,7 @@ export default function Friends() {
     if (otherIds.length) {
       const { data: ps } = await supabase
         .from("profiles")
-        .select("user_id, display_name, username, invite_code, avatar_url")
+        .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
         .in("user_id", otherIds);
       const map: Record<string, Profile> = {};
       (ps || []).forEach((p: any) => (map[p.user_id] = p));
@@ -104,6 +112,9 @@ export default function Friends() {
 
   useEffect(() => {
     loadAll();
+    if (!user) return;
+    const id = window.setInterval(loadAll, 30_000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -119,7 +130,7 @@ export default function Friends() {
     (async () => {
       const { data: target } = await supabase
         .from("profiles")
-        .select("user_id, display_name, username, invite_code, avatar_url")
+        .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
         .eq("invite_code", code)
         .maybeSingle();
       window.history.replaceState({}, "", "/friends");
@@ -156,7 +167,7 @@ export default function Friends() {
     setSearching(true);
     const { data } = await supabase
       .from("profiles")
-      .select("user_id, display_name, username, invite_code, avatar_url")
+      .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
       .ilike("username", `%${q}%`)
       .neq("user_id", user.id)
       .limit(10);
@@ -395,11 +406,30 @@ export default function Friends() {
             const todayMin = sessions
               .filter((s) => s.user_id === fid && new Date(s.completed_at) >= todayStart)
               .reduce((a, s) => a + (s.duration_minutes || 0), 0);
+            const studying = isActivelyStudying(p);
             return (
               <div key={f.id} className="flex items-center justify-between p-3 rounded-md bg-muted/40">
-                <div>
-                  <p className="text-sm font-medium">{p?.display_name}</p>
-                  <p className="text-xs text-muted-foreground">@{p?.username} • {fmt(todayMin)} today</p>
+                <div className="flex items-center gap-3">
+                  <span className="relative inline-flex">
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${studying ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+                      title={studying ? "Currently studying" : "Offline"}
+                    />
+                    {studying && (
+                      <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-60" />
+                    )}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {p?.display_name}
+                      {studying && (
+                        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+                          Studying
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">@{p?.username} • {fmt(todayMin)} today</p>
+                  </div>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => remove(f.id)}>
                   <XIcon className="w-4 h-4" />

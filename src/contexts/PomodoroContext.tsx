@@ -149,6 +149,17 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [workMin, breakMin, mode, endTime]);
 
+  // Broadcast studying status to profile so friends can see online/offline-style indicator
+  useEffect(() => {
+    if (!user) return;
+    const studying = endTime !== null && mode === "work";
+    supabase
+      .from("profiles")
+      .update({ is_studying: studying, studying_since: studying ? new Date().toISOString() : null })
+      .eq("user_id", user.id)
+      .then(() => {});
+  }, [user, endTime, mode]);
+
   const saveSession = useCallback(async (minutes: number) => {
     if (!user || minutes <= 0) return;
     const { error } = await supabase.from("study_sessions").insert({
