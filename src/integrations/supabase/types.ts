@@ -90,7 +90,9 @@ export type Database = {
           display_name: string | null
           id: string
           invite_code: string | null
+          is_studying: boolean
           level: number
+          studying_since: string | null
           updated_at: string
           user_id: string
           username: string | null
@@ -103,7 +105,9 @@ export type Database = {
           display_name?: string | null
           id?: string
           invite_code?: string | null
+          is_studying?: boolean
           level?: number
+          studying_since?: string | null
           updated_at?: string
           user_id: string
           username?: string | null
@@ -116,7 +120,9 @@ export type Database = {
           display_name?: string | null
           id?: string
           invite_code?: string | null
+          is_studying?: boolean
           level?: number
+          studying_since?: string | null
           updated_at?: string
           user_id?: string
           username?: string | null
