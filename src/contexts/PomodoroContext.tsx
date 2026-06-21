@@ -349,6 +349,12 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     setEndTime(null);
   };
 
+  const addStudyTime = useCallback(async (minutes: number, asCompletedSession = true) => {
+    const m = Math.max(0, Math.floor(minutes));
+    if (m <= 0) return;
+    await saveSession(m, asCompletedSession);
+  }, [saveSession]);
+
   return (
     <Ctx.Provider value={{
       pomoMode, setPomoMode,
@@ -357,7 +363,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       customBreak, setCustomBreak,
       workMin, breakMin, mode, seconds, running, consecutiveWork,
       sessionsToday, studiedTodayMin,
-      start, pause, toggle, reset, skip,
+      start, pause, toggle, reset, skip, addStudyTime,
     }}>
       {children}
     </Ctx.Provider>
