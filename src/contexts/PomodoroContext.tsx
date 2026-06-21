@@ -194,7 +194,12 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
         playNotificationSound();
         if (mode === "work") {
           const remainingMin = Math.max(0, workMin - savedMinutesRef.current);
-          if (remainingMin > 0) saveSession(remainingMin);
+          if (remainingMin > 0) saveSession(remainingMin, true);
+          else {
+            // Already saved all minutes via partials, but still count as a completed session
+            setSessionsToday((c) => c + 1);
+            toast.success(`Session complete!`);
+          }
           savedMinutesRef.current = 0;
           const next = consecutiveWork + 1;
           setConsecutiveWork(next);
