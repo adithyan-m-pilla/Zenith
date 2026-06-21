@@ -81,6 +81,7 @@ interface PomodoroCtx {
   toggle: () => void;
   reset: () => void;
   skip: () => void;
+  addStudyTime: (minutes: number, asCompletedSession?: boolean) => Promise<void>;
 }
 
 const Ctx = createContext<PomodoroCtx | null>(null);
