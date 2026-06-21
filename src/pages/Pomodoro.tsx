@@ -31,12 +31,55 @@ const Pomodoro = () => {
     customBreak, setCustomBreak,
     workMin, breakMin, mode, seconds, running, consecutiveWork,
     sessionsToday, studiedTodayMin,
-    toggle, reset, skip,
+    toggle, reset, skip, addStudyTime,
   } = usePomodoro();
 
   const [display, setDisplay] = useState<DisplayStyle>("digital");
   const [themeIdx, setThemeIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Free-form stopwatch (count-up)
+  const [swRunning, setSwRunning] = useState(false);
+  const [swSeconds, setSwSeconds] = useState(0);
+  const swSavedMinRef = useRef(0);
+  useEffect(() => {
+    if (!swRunning) return;
+    const id = window.setInterval(() => setSwSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [swRunning]);
+  useEffect(() => {
+    if (!swRunning) return;
+    const totalMin = Math.floor(swSeconds / 60);
+    const delta = totalMin - swSavedMinRef.current;
+    if (delta >= 1) {
+      swSavedMinRef.current = totalMin;
+      addStudyTime(delta, false); // partial — adds to total time, no session bump
+    }
+  }, [swSeconds, swRunning, addStudyTime]);
+  const stopStopwatch = async () => {
+    setSwRunning(false);
+    const totalMin = Math.floor(swSeconds / 60);
+    const delta = totalMin - swSavedMinRef.current;
+    if (delta >= 1) await addStudyTime(delta, false);
+    if (totalMin >= 1) {
+      // Count one completed session for the whole stopwatch run
+      await addStudyTime(0, true).catch(() => {});
+    }
+    swSavedMinRef.current = 0;
+    setSwSeconds(0);
+  };
+
+  // Manual session entry
+  const [manualMin, setManualMin] = useState<string>("");
+  const submitManual = async () => {
+    const n = parseInt(manualMin, 10);
+    if (!n || n <= 0) {
+      toast.error("Enter minutes greater than 0");
+      return;
+    }
+    await addStudyTime(n, true);
+    setManualMin("");
+  };
 
   const totalSeconds = mode === "work" ? workMin * 60 : breakMin * 60;
   const progress = ((totalSeconds - seconds) / totalSeconds) * 100;
