@@ -169,18 +169,18 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       .then(() => {});
   }, [user, endTime, mode]);
 
-  const saveSession = useCallback(async (minutes: number) => {
+  const saveSession = useCallback(async (minutes: number, isCompletion = false) => {
     if (!user || minutes <= 0) return;
     const { error } = await supabase.from("study_sessions").insert({
       user_id: user.id,
       subject: "Pomodoro",
       duration_minutes: minutes,
-      session_type: pomoMode,
+      session_type: isCompletion ? pomoMode : `${pomoMode}_partial`,
     });
     if (!error) {
-      setSessionsToday((c) => c + 1);
+      if (isCompletion) setSessionsToday((c) => c + 1);
       setStudiedTodayMin((c) => c + minutes);
-      toast.success(`Session saved! ${minutes} min recorded.`);
+      if (isCompletion) toast.success(`Session complete! ${minutes} min recorded.`);
     }
   }, [user, pomoMode]);
 
@@ -194,7 +194,12 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
         playNotificationSound();
         if (mode === "work") {
           const remainingMin = Math.max(0, workMin - savedMinutesRef.current);
-          if (remainingMin > 0) saveSession(remainingMin);
+          if (remainingMin > 0) saveSession(remainingMin, true);
+          else {
+            // Already saved all minutes via partials, but still count as a completed session
+            setSessionsToday((c) => c + 1);
+            toast.success(`Session complete!`);
+          }
           savedMinutesRef.current = 0;
           const next = consecutiveWork + 1;
           setConsecutiveWork(next);
@@ -226,12 +231,14 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     today.setHours(0, 0, 0, 0);
     supabase
       .from("study_sessions")
-      .select("id, duration_minutes")
+      .select("id, duration_minutes, session_type")
       .eq("user_id", user.id)
       .gte("completed_at", today.toISOString())
       .then(({ data }) => {
-        setSessionsToday(data?.length ?? 0);
-        setStudiedTodayMin((data || []).reduce((a, s) => a + (s.duration_minutes || 0), 0));
+        const rows = data || [];
+        const completed = rows.filter((s: any) => !String(s.session_type || "").endsWith("_partial"));
+        setSessionsToday(completed.length);
+        setStudiedTodayMin(rows.reduce((a, s: any) => a + (s.duration_minutes || 0), 0));
       });
   }, [user]);
 
@@ -300,7 +307,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
             user_id: userId,
             subject: "Pomodoro",
             duration_minutes: delta,
-            session_type: pomoMode,
+            session_type: `${pomoMode}_partial`,
           }),
         }).catch(() => {});
       } catch {}
