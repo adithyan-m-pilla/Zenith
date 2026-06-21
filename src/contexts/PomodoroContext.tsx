@@ -169,7 +169,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       .then(() => {});
   }, [user, endTime, mode]);
 
-  const saveSession = useCallback(async (minutes: number) => {
+  const saveSession = useCallback(async (minutes: number, isCompletion = false) => {
     if (!user || minutes <= 0) return;
     const { error } = await supabase.from("study_sessions").insert({
       user_id: user.id,
@@ -178,9 +178,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       session_type: pomoMode,
     });
     if (!error) {
-      setSessionsToday((c) => c + 1);
+      if (isCompletion) setSessionsToday((c) => c + 1);
       setStudiedTodayMin((c) => c + minutes);
-      toast.success(`Session saved! ${minutes} min recorded.`);
+      if (isCompletion) toast.success(`Session complete! ${minutes} min recorded.`);
     }
   }, [user, pomoMode]);
 
