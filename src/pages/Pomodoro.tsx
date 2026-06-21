@@ -61,10 +61,7 @@ const Pomodoro = () => {
     const totalMin = Math.floor(swSeconds / 60);
     const delta = totalMin - swSavedMinRef.current;
     if (delta >= 1) await addStudyTime(delta, false);
-    if (totalMin >= 1) {
-      // Count one completed session for the whole stopwatch run
-      await addStudyTime(0, true).catch(() => {});
-    }
+    if (totalMin >= 1) toast.success(`Stopwatch saved · ${totalMin} min added`);
     swSavedMinRef.current = 0;
     setSwSeconds(0);
   };
