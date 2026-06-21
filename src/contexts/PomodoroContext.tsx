@@ -231,12 +231,14 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     today.setHours(0, 0, 0, 0);
     supabase
       .from("study_sessions")
-      .select("id, duration_minutes")
+      .select("id, duration_minutes, session_type")
       .eq("user_id", user.id)
       .gte("completed_at", today.toISOString())
       .then(({ data }) => {
-        setSessionsToday(data?.length ?? 0);
-        setStudiedTodayMin((data || []).reduce((a, s) => a + (s.duration_minutes || 0), 0));
+        const rows = data || [];
+        const completed = rows.filter((s: any) => !String(s.session_type || "").endsWith("_partial"));
+        setSessionsToday(completed.length);
+        setStudiedTodayMin(rows.reduce((a, s: any) => a + (s.duration_minutes || 0), 0));
       });
   }, [user]);
 
