@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserPlus, Copy, Check, Trophy, Clock, X as XIcon } from "lucide-react";
+import { Users, UserPlus, Copy, Check, Trophy, Clock, X as XIcon, Settings, Search } from "lucide-react";
 
 type Profile = {
   user_id: string;
