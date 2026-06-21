@@ -307,7 +307,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
             user_id: userId,
             subject: "Pomodoro",
             duration_minutes: delta,
-            session_type: pomoMode,
+            session_type: `${pomoMode}_partial`,
           }),
         }).catch(() => {});
       } catch {}
