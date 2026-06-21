@@ -252,72 +252,90 @@ export default function Friends() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <Users className="w-7 h-7 text-primary" />
-        <h1 className="font-heading text-2xl sm:text-3xl font-bold">Friends</h1>
-      </div>
-
-      {/* Username + invite */}
-      <Card className="p-5 space-y-4">
-        <div>
-          <p className="text-sm font-semibold mb-2">Your username</p>
-          <div className="flex gap-2">
-            <div className="flex items-center px-3 rounded-md border border-input bg-background text-muted-foreground text-sm">@</div>
-            <Input
-              value={usernameInput}
-              onChange={(e) => setUsernameInput(e.target.value)}
-              placeholder="yourname"
-              className="flex-1"
-            />
-            <Button onClick={saveUsername} disabled={savingUsername}>
-              {savingUsername ? "Saving..." : "Save"}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">3-20 characters. Letters, numbers, underscore.</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Users className="w-7 h-7 text-primary" />
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold">Friends</h1>
         </div>
-
-        {me?.invite_code && (
-          <div>
-            <p className="text-sm font-semibold mb-2">Your invite link</p>
-            <div className="flex gap-2">
-              <Input value={inviteLink} readOnly className="flex-1 text-xs" />
-              <Button variant="outline" onClick={copyInvite}>
-                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+        <div className="flex items-center gap-2">
+          {/* Search popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="icon" variant="outline" aria-label="Search friends">
+                <Search className="w-4 h-4" />
               </Button>
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* Add friend */}
-      <Card className="p-5 space-y-3">
-        <p className="text-sm font-semibold">Add a friend by username</p>
-        <div className="flex gap-2">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && runSearch()}
-            placeholder="search username..."
-          />
-          <Button onClick={runSearch} disabled={searching}>
-            <UserPlus className="w-4 h-4 mr-1" />
-            Search
-          </Button>
-        </div>
-        {searchResults.length > 0 && (
-          <div className="space-y-2">
-            {searchResults.map((p) => (
-              <div key={p.user_id} className="flex items-center justify-between p-2 rounded-md bg-muted/40">
-                <div>
-                  <p className="text-sm font-medium">{p.display_name}</p>
-                  <p className="text-xs text-muted-foreground">@{p.username}</p>
-                </div>
-                <Button size="sm" onClick={() => sendRequest(p.user_id)}>Add</Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 space-y-3">
+              <p className="text-sm font-semibold">Find a friend</p>
+              <div className="flex gap-2">
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                  placeholder="search username..."
+                  autoFocus
+                />
+                <Button size="icon" onClick={runSearch} disabled={searching} aria-label="Search">
+                  <Search className="w-4 h-4" />
+                </Button>
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              {searchResults.length > 0 && (
+                <div className="space-y-2 max-h-72 overflow-auto">
+                  {searchResults.map((p) => (
+                    <div key={p.user_id} className="flex items-center justify-between p-2 rounded-md bg-muted/40">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{p.display_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">@{p.username}</p>
+                      </div>
+                      <Button size="sm" onClick={() => sendRequest(p.user_id)}>
+                        <UserPlus className="w-4 h-4 mr-1" />Add
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+
+          {/* Settings popover (username + invite) */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="icon" variant="outline" aria-label="Friend settings">
+                <Settings className="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 space-y-4">
+              <div>
+                <p className="text-sm font-semibold mb-2">Your username</p>
+                <div className="flex gap-2">
+                  <div className="flex items-center px-3 rounded-md border border-input bg-background text-muted-foreground text-sm">@</div>
+                  <Input
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    placeholder="yourname"
+                    className="flex-1"
+                  />
+                  <Button onClick={saveUsername} disabled={savingUsername}>
+                    {savingUsername ? "..." : "Save"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">3-20 chars. Letters, numbers, underscore.</p>
+              </div>
+              {me?.invite_code && (
+                <div>
+                  <p className="text-sm font-semibold mb-2">Invite link</p>
+                  <div className="flex gap-2">
+                    <Input value={inviteLink} readOnly className="flex-1 text-xs" />
+                    <Button variant="outline" size="icon" onClick={copyInvite}>
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
 
       {/* Requests */}
       {(incoming.length > 0 || outgoing.length > 0) && (
@@ -352,7 +370,7 @@ export default function Friends() {
         </Card>
       )}
 
-      {/* Leaderboard */}
+      {/* Leaderboard (top) */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Trophy className="w-5 h-5 text-primary" />
@@ -396,7 +414,7 @@ export default function Friends() {
         </Tabs>
       </Card>
 
-      {/* Friends list with stats */}
+      {/* Friends list (below leaderboard) */}
       {accepted.length > 0 && (
         <Card className="p-5 space-y-3">
           <p className="text-sm font-semibold">Your friends ({accepted.length})</p>
