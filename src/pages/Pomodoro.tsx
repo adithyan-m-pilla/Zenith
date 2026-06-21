@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Timer, Play, Pause, RotateCcw, Settings, Volume2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Timer, Play, Pause, RotateCcw, Settings, Volume2, StopCircle, Plus } from "lucide-react";
 import { usePomodoro, getStandardBreak } from "@/contexts/PomodoroContext";
+import { toast } from "sonner";
 
 type DisplayStyle = "digital" | "analog" | "minimal";
 
