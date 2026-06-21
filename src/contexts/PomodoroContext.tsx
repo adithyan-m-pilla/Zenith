@@ -175,7 +175,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       user_id: user.id,
       subject: "Pomodoro",
       duration_minutes: minutes,
-      session_type: pomoMode,
+      session_type: isCompletion ? pomoMode : `${pomoMode}_partial`,
     });
     if (!error) {
       if (isCompletion) setSessionsToday((c) => c + 1);
