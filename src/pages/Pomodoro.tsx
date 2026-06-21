@@ -302,6 +302,56 @@ const Pomodoro = () => {
         </div>
         <p className="text-[10px] text-muted-foreground mt-1">{sessionsToday} sessions · {studiedTodayMin} minutes total</p>
       </div>
+
+      {/* Free-form stopwatch */}
+      <div className="glass-card p-3 sm:p-4 animate-fade-in">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-xs sm:text-sm font-medium text-foreground">Stopwatch</p>
+            <p className="text-[10px] text-muted-foreground">Counts up · auto-saves every minute</p>
+          </div>
+          <span className={`font-heading text-2xl sm:text-3xl font-bold ${theme.accent} tabular-nums`}>
+            {formatTime(swSeconds)}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSwRunning((r) => !r)}
+            className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            {swRunning ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Start</>}
+          </button>
+          <button
+            onClick={stopStopwatch}
+            disabled={swSeconds === 0}
+            className="px-4 py-2 rounded-lg bg-secondary text-foreground text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+          >
+            <StopCircle className="w-4 h-4" /> Stop & save
+          </button>
+        </div>
+      </div>
+
+      {/* Manual session entry */}
+      <div className="glass-card p-3 sm:p-4 animate-fade-in">
+        <p className="text-xs sm:text-sm font-medium text-foreground mb-1">Add your session</p>
+        <p className="text-[10px] text-muted-foreground mb-3">Log time you studied offline or away from the app</p>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            min={1}
+            value={manualMin}
+            onChange={(e) => setManualMin(e.target.value)}
+            placeholder="Minutes studied"
+            className="flex-1 bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <button
+            onClick={submitManual}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> Add
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
