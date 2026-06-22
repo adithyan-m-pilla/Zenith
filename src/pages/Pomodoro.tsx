@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Timer, Play, Pause, RotateCcw, Settings, Volume2, StopCircle, Plus } from "lucide-react";
-import { usePomodoro, getStandardBreak } from "@/contexts/PomodoroContext";
+import { Timer, Play, Pause, RotateCcw, Settings, StopCircle, Plus, Target } from "lucide-react";
+import { usePomodoro } from "@/contexts/PomodoroContext";
 import { toast } from "sonner";
 
 type DisplayStyle = "digital" | "analog" | "minimal";
+type TopTab = "standard" | "custom" | "stopwatch";
 
 const themes = [
   { name: "Emerald", bg: "from-emerald-900/40 to-background", accent: "text-primary" },
@@ -22,6 +23,7 @@ const STANDARD_PRESETS = [
 ];
 
 const LONG_BREAK_AFTER = 4;
+const GOAL_KEY = "zenith-daily-goal-min";
 
 const Pomodoro = () => {
   const {
@@ -30,32 +32,60 @@ const Pomodoro = () => {
     customWork, setCustomWork,
     customBreak, setCustomBreak,
     workMin, breakMin, mode, seconds, running, consecutiveWork,
-    sessionsToday, studiedTodayMin,
-    toggle, reset, skip, addStudyTime,
+    sessionsToday,
+    toggle, reset, skip, pause, addStudyTime,
   } = usePomodoro();
+
+  // Top tab — pomodoro modes plus stopwatch
+  const [tab, setTab] = useState<TopTab>(pomoMode === "custom" ? "custom" : "standard");
+  useEffect(() => {
+    if (tab === "standard") setPomoMode("standard");
+    else if (tab === "custom") setPomoMode("custom");
+  }, [tab, setPomoMode]);
 
   const [display, setDisplay] = useState<DisplayStyle>("digital");
   const [themeIdx, setThemeIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Free-form stopwatch (count-up)
+  // Daily goal (minutes)
+  const [dailyGoal, setDailyGoal] = useState<number>(() => {
+    const raw = localStorage.getItem(GOAL_KEY);
+    return raw ? Math.max(1, parseInt(raw, 10) || 120) : 120;
+  });
+  useEffect(() => { localStorage.setItem(GOAL_KEY, String(dailyGoal)); }, [dailyGoal]);
+  const sessionsToGoal = Math.ceil(dailyGoal / Math.max(1, workMin));
+
+  // ---- Stopwatch (count-up) ----
   const [swRunning, setSwRunning] = useState(false);
   const [swSeconds, setSwSeconds] = useState(0);
   const swSavedMinRef = useRef(0);
+
   useEffect(() => {
     if (!swRunning) return;
     const id = window.setInterval(() => setSwSeconds((s) => s + 1), 1000);
     return () => clearInterval(id);
   }, [swRunning]);
+
   useEffect(() => {
     if (!swRunning) return;
     const totalMin = Math.floor(swSeconds / 60);
     const delta = totalMin - swSavedMinRef.current;
     if (delta >= 1) {
       swSavedMinRef.current = totalMin;
-      addStudyTime(delta, false); // partial — adds to total time, no session bump
+      addStudyTime(delta, false);
     }
   }, [swSeconds, swRunning, addStudyTime]);
+
+  const startStopwatch = () => {
+    if (running) pause(); // never clash with pomodoro
+    setSwRunning(true);
+  };
+  const pauseStopwatch = () => {
+    setSwRunning(false);
+    const totalMin = Math.floor(swSeconds / 60);
+    const delta = totalMin - swSavedMinRef.current;
+    if (delta >= 1) { swSavedMinRef.current = totalMin; addStudyTime(delta, false); }
+  };
   const stopStopwatch = async () => {
     setSwRunning(false);
     const totalMin = Math.floor(swSeconds / 60);
@@ -66,35 +96,56 @@ const Pomodoro = () => {
     setSwSeconds(0);
   };
 
+  // When switching tabs: stop the other timer to prevent overlap
+  useEffect(() => {
+    if (tab === "stopwatch") {
+      if (running) pause();
+    } else {
+      if (swRunning) pauseStopwatch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // When user starts pomodoro, ensure stopwatch is stopped
+  const togglePomodoro = () => {
+    if (!running && swRunning) pauseStopwatch();
+    toggle();
+  };
+
   // Manual session entry
   const [manualMin, setManualMin] = useState<string>("");
   const submitManual = async () => {
     const n = parseInt(manualMin, 10);
-    if (!n || n <= 0) {
-      toast.error("Enter minutes greater than 0");
-      return;
-    }
+    if (!n || n <= 0) { toast.error("Enter minutes greater than 0"); return; }
     await addStudyTime(n, true);
     setManualMin("");
   };
 
-  const totalSeconds = mode === "work" ? workMin * 60 : breakMin * 60;
-  const progress = ((totalSeconds - seconds) / totalSeconds) * 100;
+  const isStopwatch = tab === "stopwatch";
+  const displaySec = isStopwatch ? swSeconds : seconds;
+  const totalSeconds = isStopwatch ? Math.max(60, swSeconds + 1) : (mode === "work" ? workMin * 60 : breakMin * 60);
+  const progress = isStopwatch ? 0 : ((totalSeconds - seconds) / totalSeconds) * 100;
+  const isRunning = isStopwatch ? swRunning : running;
 
   const formatTime = (s: number) => {
-    const min = Math.floor(s / 60);
+    const hr = Math.floor(s / 3600);
+    const min = Math.floor((s % 3600) / 60);
     const sec = s % 60;
+    if (hr > 0) return `${hr}:${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
     return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
   const theme = themes[themeIdx];
-  const studiedTodayHrs = Math.round((studiedTodayMin / 60) * 10) / 10;
 
   const renderAnalog = () => {
-    const minuteAngle = ((totalSeconds - seconds) / totalSeconds) * 360;
-    const elapsedInMinute = 60 - (seconds % 60);
-    const secondAngle = ((elapsedInMinute % 60) / 60) * 360;
+    // For stopwatch: hands sweep based on elapsed; for pomodoro: progress-based
     const cx = 50, cy = 50;
+    const minuteAngle = isStopwatch
+      ? ((swSeconds / 60) % 60) * 6
+      : ((totalSeconds - seconds) / totalSeconds) * 360;
+    const secondAngle = isStopwatch
+      ? (swSeconds % 60) * 6
+      : (((60 - (seconds % 60)) % 60) / 60) * 360;
 
     return (
       <div className="relative w-56 h-56 sm:w-72 sm:h-72">
@@ -111,15 +162,6 @@ const Pomodoro = () => {
                 stroke="hsl(var(--foreground))" strokeWidth={i % 3 === 0 ? "1.2" : "0.5"} strokeLinecap="round" />
             );
           })}
-          {Array.from({ length: 60 }).map((_, i) => {
-            if (i % 5 === 0) return null;
-            const angle = (i * 6 - 90) * (Math.PI / 180);
-            return (
-              <line key={`m-${i}`} x1={cx + 42 * Math.cos(angle)} y1={cy + 42 * Math.sin(angle)}
-                x2={cx + 41 * Math.cos(angle)} y2={cy + 41 * Math.sin(angle)}
-                stroke="hsl(var(--muted-foreground))" strokeWidth="0.3" />
-            );
-          })}
           {[12, 3, 6, 9].map((num) => {
             const i = num === 12 ? 0 : num;
             const angle = (i * 30 - 90) * (Math.PI / 180);
@@ -131,11 +173,13 @@ const Pomodoro = () => {
               </text>
             );
           })}
-          <circle cx={cx} cy={cy} r="40" fill="none" stroke="hsl(var(--primary))" strokeWidth="2"
-            strokeDasharray={`${2 * Math.PI * 40}`}
-            strokeDashoffset={`${2 * Math.PI * 40 * (1 - progress / 100)}`}
-            strokeLinecap="round" className="transition-all duration-1000"
-            transform={`rotate(-90 ${cx} ${cy})`} opacity="0.4" />
+          {!isStopwatch && (
+            <circle cx={cx} cy={cy} r="40" fill="none" stroke="hsl(var(--primary))" strokeWidth="2"
+              strokeDasharray={`${2 * Math.PI * 40}`}
+              strokeDashoffset={`${2 * Math.PI * 40 * (1 - progress / 100)}`}
+              strokeLinecap="round" className="transition-all duration-1000"
+              transform={`rotate(-90 ${cx} ${cy})`} opacity="0.4" />
+          )}
           {(() => {
             const angle = (minuteAngle - 90) * (Math.PI / 180);
             return <line x1={cx} y1={cy} x2={cx + 28 * Math.cos(angle)} y2={cy + 28 * Math.sin(angle)}
@@ -156,8 +200,8 @@ const Pomodoro = () => {
           <circle cx={cx} cy={cy} r="1" fill="hsl(var(--background))" />
         </svg>
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">
-          <span className={`font-heading text-base sm:text-lg font-bold ${theme.accent} tabular-nums`}>{formatTime(seconds)}</span>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider ml-2">{mode}</span>
+          <span className={`font-heading text-base sm:text-lg font-bold ${theme.accent} tabular-nums`}>{formatTime(displaySec)}</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider ml-2">{isStopwatch ? "stopwatch" : mode}</span>
         </div>
       </div>
     );
@@ -168,10 +212,10 @@ const Pomodoro = () => {
       <div className="flex items-center justify-between animate-fade-in">
         <div>
           <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2 sm:gap-3">
-            <Timer className="w-6 h-6 sm:w-8 sm:h-8 text-primary" /> Pomodoro
+            <Timer className="w-6 h-6 sm:w-8 sm:h-8 text-primary" /> {isStopwatch ? "Stopwatch" : "Pomodoro"}
           </h1>
           <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
-            {pomoMode === "standard" ? `${workMin}m work · ${breakMin}m break` : `Custom: ${workMin}m work · ${breakMin}m break`}
+            {isStopwatch ? "Free-form count-up · auto-saves every minute" : `${workMin}m work · ${breakMin}m break`}
             <span className="ml-2 text-primary font-medium">{sessionsToday} sessions today</span>
           </p>
         </div>
@@ -181,21 +225,18 @@ const Pomodoro = () => {
       </div>
 
       <div className="flex gap-2 animate-fade-in">
-        <button
-          onClick={() => setPomoMode("standard")}
-          className={`flex-1 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-all ${pomoMode === "standard" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
-        >
-          Standard
-        </button>
-        <button
-          onClick={() => setPomoMode("custom")}
-          className={`flex-1 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-all ${pomoMode === "custom" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
-        >
-          Custom
-        </button>
+        {(["standard", "custom", "stopwatch"] as TopTab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-2 sm:py-2.5 rounded-lg text-sm font-medium capitalize transition-all ${tab === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
 
-      {pomoMode === "standard" ? (
+      {tab === "standard" && (
         <div className="glass-card p-3 sm:p-4 animate-fade-in">
           <label className="text-xs text-muted-foreground block mb-2">Preset (work / break)</label>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -210,21 +251,21 @@ const Pomodoro = () => {
             ))}
           </div>
         </div>
-      ) : (
-        showSettings && (
-          <div className="glass-card p-3 sm:p-4 grid grid-cols-2 gap-3 sm:gap-4 animate-scale-in">
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Work (min)</label>
-              <input type="number" value={customWork} min={1} onChange={(e) => setCustomWork(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Break (min)</label>
-              <input type="number" value={customBreak} min={1} onChange={(e) => setCustomBreak(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
+      )}
+
+      {tab === "custom" && showSettings && (
+        <div className="glass-card p-3 sm:p-4 grid grid-cols-2 gap-3 sm:gap-4 animate-scale-in">
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Work (min)</label>
+            <input type="number" value={customWork} min={1} onChange={(e) => setCustomWork(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
-        )
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Break (min)</label>
+            <input type="number" value={customBreak} min={1} onChange={(e) => setCustomBreak(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+        </div>
       )}
 
       {showSettings && (
@@ -253,13 +294,13 @@ const Pomodoro = () => {
         {display === "analog" ? renderAnalog() : (
           <div className="text-center">
             <span className={`font-heading ${display === "minimal" ? "text-5xl sm:text-7xl" : "text-6xl sm:text-8xl"} font-bold ${theme.accent} tabular-nums tracking-tight`}>
-              {formatTime(seconds)}
+              {formatTime(displaySec)}
             </span>
             <p className="text-muted-foreground text-xs sm:text-sm uppercase tracking-widest mt-2 sm:mt-3">
-              {mode === "work" ? "Focus Time" : "Break Time"}
-              {mode === "break" && consecutiveWork > 0 && consecutiveWork % LONG_BREAK_AFTER === 0 && " (Long Break)"}
+              {isStopwatch ? "Elapsed Time" : (mode === "work" ? "Focus Time" : "Break Time")}
+              {!isStopwatch && mode === "break" && consecutiveWork > 0 && consecutiveWork % LONG_BREAK_AFTER === 0 && " (Long Break)"}
             </p>
-            {display === "digital" && (
+            {display === "digital" && !isStopwatch && (
               <div className="w-48 sm:w-64 h-1.5 bg-muted rounded-full overflow-hidden mt-3 sm:mt-4 mx-auto">
                 <div className="h-full bg-primary rounded-full transition-all duration-1000" style={{ width: `${progress}%` }} />
               </div>
@@ -268,67 +309,64 @@ const Pomodoro = () => {
         )}
 
         <div className="flex items-center gap-3 sm:gap-4 mt-6 sm:mt-8">
-          <button onClick={reset} className="p-2.5 sm:p-3 rounded-full bg-secondary hover:bg-secondary/80 transition-colors">
-            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 text-foreground" />
-          </button>
-          <button
-            onClick={toggle}
-            className="p-4 sm:p-5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity animate-pulse-glow"
-          >
-            {running ? <Pause className="w-6 h-6 sm:w-7 sm:h-7" /> : <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />}
-          </button>
-          <button
-            onClick={skip}
-            className="px-3 sm:px-4 py-2 rounded-full bg-secondary text-xs sm:text-sm text-foreground hover:bg-secondary/80 transition-colors"
-          >
-            {mode === "work" ? "Skip to Break" : "Skip to Work"}
-          </button>
+          {isStopwatch ? (
+            <>
+              <button
+                onClick={() => (swRunning ? pauseStopwatch() : startStopwatch())}
+                className="p-4 sm:p-5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity animate-pulse-glow"
+              >
+                {swRunning ? <Pause className="w-6 h-6 sm:w-7 sm:h-7" /> : <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />}
+              </button>
+              <button
+                onClick={stopStopwatch}
+                disabled={swSeconds === 0}
+                className="px-3 sm:px-4 py-2 rounded-full bg-secondary text-xs sm:text-sm text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+              >
+                <StopCircle className="w-4 h-4" /> Stop & reset
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={reset} className="p-2.5 sm:p-3 rounded-full bg-secondary hover:bg-secondary/80 transition-colors">
+                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 text-foreground" />
+              </button>
+              <button
+                onClick={togglePomodoro}
+                className="p-4 sm:p-5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity animate-pulse-glow"
+              >
+                {isRunning ? <Pause className="w-6 h-6 sm:w-7 sm:h-7" /> : <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />}
+              </button>
+              <button
+                onClick={skip}
+                className="px-3 sm:px-4 py-2 rounded-full bg-secondary text-xs sm:text-sm text-foreground hover:bg-secondary/80 transition-colors"
+              >
+                {mode === "work" ? "Skip to Break" : "Skip to Work"}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="glass-card p-3 sm:p-4 animate-fade-in">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Volume2 className="w-4 h-4 text-primary" />
-            <span className="text-xs sm:text-sm font-medium text-foreground">Today's Study</span>
-          </div>
-          <span className="text-xs sm:text-sm text-primary font-semibold">{studiedTodayHrs} hrs</span>
+      {/* Daily goal box */}
+      <div className="glass-card p-3 sm:p-4 animate-fade-in flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-primary/10">
+          <Target className="w-5 h-5 text-primary" />
         </div>
-        <div className="w-full h-2 sm:h-3 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-500"
-            style={{ width: `${Math.min(100, (studiedTodayMin / (workMin * 12)) * 100)}%` }}
-          />
+        <div className="flex-1">
+          <p className="text-xs sm:text-sm font-medium text-foreground">
+            <span className="text-primary font-bold">{sessionsToGoal}</span>{" "}
+            {sessionsToGoal === 1 ? "session" : "sessions"} of {workMin}m to hit your daily goal
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Goal: {dailyGoal} min · {sessionsToday} done today</p>
         </div>
-        <p className="text-[10px] text-muted-foreground mt-1">{sessionsToday} sessions · {studiedTodayMin} minutes total</p>
-      </div>
-
-      {/* Free-form stopwatch */}
-      <div className="glass-card p-3 sm:p-4 animate-fade-in">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-xs sm:text-sm font-medium text-foreground">Stopwatch</p>
-            <p className="text-[10px] text-muted-foreground">Counts up · auto-saves every minute</p>
-          </div>
-          <span className={`font-heading text-2xl sm:text-3xl font-bold ${theme.accent} tabular-nums`}>
-            {formatTime(swSeconds)}
-          </span>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setSwRunning((r) => !r)}
-            className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-          >
-            {swRunning ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Start</>}
-          </button>
-          <button
-            onClick={stopStopwatch}
-            disabled={swSeconds === 0}
-            className="px-4 py-2 rounded-lg bg-secondary text-foreground text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-40 flex items-center gap-2"
-          >
-            <StopCircle className="w-4 h-4" /> Stop & save
-          </button>
-        </div>
+        <input
+          type="number"
+          min={1}
+          value={dailyGoal}
+          onChange={(e) => setDailyGoal(Math.max(1, parseInt(e.target.value) || 1))}
+          className="w-20 bg-secondary rounded-lg px-2 py-1.5 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-ring"
+          title="Daily goal in minutes"
+        />
       </div>
 
       {/* Manual session entry */}
