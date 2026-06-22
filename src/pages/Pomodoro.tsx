@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Timer, Play, Pause, RotateCcw, Settings, StopCircle, Plus, Target } from "lucide-react";
 import { usePomodoro } from "@/contexts/PomodoroContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type DisplayStyle = "digital" | "analog" | "minimal";
