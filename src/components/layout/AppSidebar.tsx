@@ -26,6 +26,7 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const { signOut, user } = useAuth();
   const { toast } = useToast();
   const [showSettings, setShowSettings] = useState(false);
+  const { theme, setTheme } = useAppTheme();
   const [displayName, setDisplayName] = useState("");
   const [dailyGoalHours, setDailyGoalHours] = useState(5);
   const [saving, setSaving] = useState(false);
