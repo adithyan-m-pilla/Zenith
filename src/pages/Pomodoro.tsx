@@ -357,27 +357,27 @@ const Pomodoro = () => {
         </div>
       </div>
 
-      {/* Daily goal box */}
-      <div className="glass-card p-3 sm:p-4 animate-fade-in flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/10">
-          <Target className="w-5 h-5 text-primary" />
+      {/* Daily goal box — reads from your main daily goal (set in sidebar) */}
+      {!isStopwatch && (
+        <div className="glass-card p-3 sm:p-4 animate-fade-in flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Target className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            {dailyGoalMin > 0 ? (
+              <>
+                <p className="text-xs sm:text-sm font-medium text-foreground">
+                  <span className="text-primary font-bold">{sessionsToGoal}</span>{" "}
+                  {sessionsToGoal === 1 ? "session" : "sessions"} of {workMin}m to hit your daily goal
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Goal: {dailyGoalMin} min · {sessionsToday} done today</p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">Set your daily goal in the sidebar to see how many sessions you need.</p>
+            )}
+          </div>
         </div>
-        <div className="flex-1">
-          <p className="text-xs sm:text-sm font-medium text-foreground">
-            <span className="text-primary font-bold">{sessionsToGoal}</span>{" "}
-            {sessionsToGoal === 1 ? "session" : "sessions"} of {workMin}m to hit your daily goal
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Goal: {dailyGoal} min · {sessionsToday} done today</p>
-        </div>
-        <input
-          type="number"
-          min={1}
-          value={dailyGoal}
-          onChange={(e) => setDailyGoal(Math.max(1, parseInt(e.target.value) || 1))}
-          className="w-20 bg-secondary rounded-lg px-2 py-1.5 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-ring"
-          title="Daily goal in minutes"
-        />
-      </div>
+      )}
 
       {/* Manual session entry */}
       <div className="glass-card p-3 sm:p-4 animate-fade-in">
