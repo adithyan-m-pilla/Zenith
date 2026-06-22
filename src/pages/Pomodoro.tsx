@@ -25,7 +25,6 @@ const STANDARD_PRESETS = [
 ];
 
 const LONG_BREAK_AFTER = 4;
-const GOAL_KEY = "zenith-daily-goal-min";
 
 const Pomodoro = () => {
   const {
@@ -37,6 +36,7 @@ const Pomodoro = () => {
     sessionsToday,
     toggle, reset, skip, pause, addStudyTime,
   } = usePomodoro();
+  const { user } = useAuth();
 
   // Top tab — pomodoro modes plus stopwatch
   const [tab, setTab] = useState<TopTab>(pomoMode === "custom" ? "custom" : "standard");
@@ -49,13 +49,21 @@ const Pomodoro = () => {
   const [themeIdx, setThemeIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Daily goal (minutes)
-  const [dailyGoal, setDailyGoal] = useState<number>(() => {
-    const raw = localStorage.getItem(GOAL_KEY);
-    return raw ? Math.max(1, parseInt(raw, 10) || 120) : 120;
-  });
-  useEffect(() => { localStorage.setItem(GOAL_KEY, String(dailyGoal)); }, [dailyGoal]);
-  const sessionsToGoal = Math.ceil(dailyGoal / Math.max(1, workMin));
+  // Daily goal pulled from user's profile (hours) — set in sidebar settings
+  const [dailyGoalMin, setDailyGoalMin] = useState<number>(0);
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("daily_goal_hours")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const hrs = Number(data?.daily_goal_hours ?? 0);
+        if (hrs > 0) setDailyGoalMin(Math.round(hrs * 60));
+      });
+  }, [user]);
+  const sessionsToGoal = dailyGoalMin > 0 ? Math.ceil(dailyGoalMin / Math.max(1, workMin)) : 0;
 
   // ---- Stopwatch (count-up) ----
   const [swRunning, setSwRunning] = useState(false);
