@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAppTheme, THEMES } from "@/contexts/ThemeContext";
 import logo from "@/assets/logo.png";
 
 const navItems = [
@@ -25,6 +26,7 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const { signOut, user } = useAuth();
   const { toast } = useToast();
   const [showSettings, setShowSettings] = useState(false);
+  const { theme, setTheme } = useAppTheme();
   const [displayName, setDisplayName] = useState("");
   const [dailyGoalHours, setDailyGoalHours] = useState(5);
   const [saving, setSaving] = useState(false);
@@ -137,6 +139,26 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
               onChange={(e) => setDailyGoalHours(Number(e.target.value))}
               className="h-8 text-sm"
             />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-2">App Theme</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  className={`flex items-center gap-2 p-1.5 rounded-lg border text-left transition-all ${theme === t.id ? "border-primary bg-accent" : "border-border hover:border-muted-foreground/40"}`}
+                  title={t.name}
+                >
+                  <div className="flex -space-x-1">
+                    {t.swatch.map((c, i) => (
+                      <span key={i} className="w-3.5 h-3.5 rounded-full border border-background" style={{ background: c }} />
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-foreground truncate">{t.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
           <Button size="sm" className="w-full" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
