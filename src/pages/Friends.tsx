@@ -118,8 +118,12 @@ export default function Friends() {
   }, [user]);
 
   useEffect(() => {
+    console.log("[Friends] useEffect mounted, setting up listeners");
     loadAll();
-    if (!user) return;
+    if (!user) {
+      console.log("[Friends] No user, skipping");
+      return;
+    }
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
@@ -139,6 +143,7 @@ export default function Friends() {
 
     const id = window.setInterval(loadAll, 30_000);
     return () => {
+      console.log("[Friends] useEffect cleanup");
       window.removeEventListener("focus", loadAll);
       window.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("zenith:study-update", onStudyUpdate);
@@ -250,15 +255,24 @@ export default function Friends() {
   const leaderboard = useMemo(() => {
     if (!user) return [];
     const start = periodStart(period);
+    console.log(`[Friends] Leaderboard calc - period: ${period}, startDate:`, start, `userID: ${user.id}`);
     const totals: Record<string, number> = { [user.id]: 0 };
     accepted.forEach((f) => {
       const fid = f.requester_id === user.id ? f.addressee_id : f.requester_id;
       totals[fid] = 0;
     });
+    console.log(`[Friends] Tracking ${Object.keys(totals).length} users`);
+    let includedCount = 0;
     sessions.forEach((s) => {
-      if (new Date(s.completed_at) < start) return;
-      if (totals[s.user_id] !== undefined) totals[s.user_id] += s.duration_minutes || 0;
+      const sDate = new Date(s.completed_at);
+      if (sDate < start) return;
+      includedCount++;
+      if (totals[s.user_id] !== undefined) {
+        totals[s.user_id] += s.duration_minutes || 0;
+        if (includedCount <= 3) console.log(`  Session: ${s.user_id} +${s.duration_minutes}m`);
+      }
     });
+    console.log(`[Friends] Included ${includedCount}/${sessions.length} sessions. Totals:`, totals);
     return Object.entries(totals)
       .map(([uid, minutes]) => {
         const isMe = uid === user.id;
