@@ -116,7 +116,12 @@ export default function Friends() {
       console.error("Failed to fetch sessions:", sessError);
     }
     if (ss && ss.length > 0) {
-      console.log("[Friends] Fetched sessions:", ss.length, "- Recent:", ss.slice(-3).map(s => ({ user_id: s.user_id, completed_at: s.completed_at, duration: s.duration_minutes })));
+      const recent = ss.slice(-3).map(s => ({ 
+        user_id: s.user_id, 
+        completed_at: new Date(s.completed_at).toISOString(), 
+        duration: s.duration_minutes 
+      }));
+      console.log("[Friends] Fetched sessions:", ss.length, "- Last 3:", JSON.stringify(recent));
     } else {
       console.log("[Friends] Fetched sessions: 0");
     }
@@ -139,18 +144,27 @@ export default function Friends() {
     };
 
     const onStudyUpdate = () => {
-      console.log("[Friends] Study update event received, refreshing");
+      console.log("[Friends] !!! STUDY UPDATE EVENT FIRED !!!");
       loadAll();
     };
 
-    window.addEventListener("focus", loadAll);
+    const onFocus = () => {
+      console.log("[Friends] Window focus event");
+      loadAll();
+    };
+
+    window.addEventListener("focus", onFocus);
     window.addEventListener("visibilitychange", onVisible);
     window.addEventListener("zenith:study-update", onStudyUpdate);
 
-    const id = window.setInterval(loadAll, 30_000);
+    const id = window.setInterval(() => {
+      console.log("[Friends] 30s interval refresh");
+      loadAll();
+    }, 30_000);
+    
     return () => {
-      console.log("[Friends] useEffect cleanup");
-      window.removeEventListener("focus", loadAll);
+      console.log("[Friends] useEffect cleanup - removing listeners");
+      window.removeEventListener("focus", onFocus);
       window.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("zenith:study-update", onStudyUpdate);
       clearInterval(id);

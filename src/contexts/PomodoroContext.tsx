@@ -223,8 +223,10 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
 
   const dispatchStudyUpdate = useCallback(() => {
     if (typeof window !== "undefined") {
-      console.log("[Pomodoro] Dispatching zenith:study-update event");
-      window.dispatchEvent(new Event("zenith:study-update"));
+      console.log("[Pomodoro] About to dispatch custom event 'zenith:study-update'");
+      const event = new Event("zenith:study-update");
+      window.dispatchEvent(event);
+      console.log("[Pomodoro] Event dispatched");
     }
   }, []);
 
@@ -257,6 +259,16 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   }, [user, pomoMode, dispatchStudyUpdate]);
 
   // Global tick - runs as long as provider is mounted (entire app)
+  useEffect(() => {
+    // Test listener to verify events fire globally
+    const testListener = () => {
+      console.log("[GLOBAL TEST] zenith:study-update event was fired");
+    };
+    window.addEventListener("zenith:study-update", testListener);
+    return () => {
+      window.removeEventListener("zenith:study-update", testListener);
+    };
+  }, []);
   useEffect(() => {
     if (endTime === null) return;
 
