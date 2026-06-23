@@ -9,6 +9,8 @@ export type PomodoroMode = "standard" | "custom";
 const LONG_BREAK_AFTER = 4;
 const LONG_BREAK_MIN = 15;
 const TIMER_KEY = "zenith-pomodoro-timer";
+const SW_KEY = "zenith-stopwatch";
+
 
 export function getStandardBreak(workMin: number): number {
   return Math.max(1, Math.round(workMin / 5));
@@ -82,7 +84,14 @@ interface PomodoroCtx {
   reset: () => void;
   skip: () => void;
   addStudyTime: (minutes: number, asCompletedSession?: boolean) => Promise<void>;
+  // Stopwatch (count-up). Persists across page navigation.
+  swSeconds: number;
+  swRunning: boolean;
+  startStopwatch: () => void;
+  pauseStopwatch: () => void;
+  stopStopwatch: () => Promise<void>;
 }
+
 
 const Ctx = createContext<PomodoroCtx | null>(null);
 
@@ -355,6 +364,94 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     await saveSession(m, asCompletedSession);
   }, [saveSession]);
 
+  // ============ Stopwatch (persistent count-up) ============
+  type SwPersist = { startedAt: number | null; baseSec: number };
+  const swSaved = useRef<SwPersist>((() => {
+    try { return JSON.parse(localStorage.getItem(SW_KEY) || "") as SwPersist; }
+    catch { return { startedAt: null, baseSec: 0 }; }
+  })());
+  const [swStartedAt, setSwStartedAt] = useState<number | null>(swSaved.current.startedAt);
+  const [swBaseSec, setSwBaseSec] = useState<number>(swSaved.current.baseSec || 0);
+  const [swSeconds, setSwSeconds] = useState<number>(() => {
+    const s = swSaved.current;
+    return (s.baseSec || 0) + (s.startedAt ? Math.floor((Date.now() - s.startedAt) / 1000) : 0);
+  });
+  const swRunning = swStartedAt !== null;
+  const swSavedMinRef = useRef(0);
+
+  useEffect(() => {
+    localStorage.setItem(SW_KEY, JSON.stringify({ startedAt: swStartedAt, baseSec: swBaseSec }));
+  }, [swStartedAt, swBaseSec]);
+
+  // Tick: update displayed seconds + auto-save every minute
+  useEffect(() => {
+    if (!swRunning) return;
+    const id = window.setInterval(() => {
+      const total = swBaseSec + Math.floor((Date.now() - (swStartedAt as number)) / 1000);
+      setSwSeconds(total);
+      const totalMin = Math.floor(total / 60);
+      const delta = totalMin - swSavedMinRef.current;
+      if (delta >= 1) {
+        swSavedMinRef.current = totalMin;
+        saveSession(delta, false);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [swRunning, swStartedAt, swBaseSec, saveSession]);
+
+  const startStopwatch = useCallback(() => {
+    if (endTime !== null) {
+      // Single active-session lock: pause pomodoro first
+      savePartialIfWork();
+      setEndTime(null);
+    }
+    if (swStartedAt !== null) return;
+    setSwStartedAt(Date.now());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swStartedAt, endTime]);
+
+  const pauseStopwatch = useCallback(() => {
+    if (swStartedAt === null) return;
+    const total = swBaseSec + Math.floor((Date.now() - swStartedAt) / 1000);
+    setSwBaseSec(total);
+    setSwStartedAt(null);
+    setSwSeconds(total);
+    const totalMin = Math.floor(total / 60);
+    const delta = totalMin - swSavedMinRef.current;
+    if (delta >= 1) { swSavedMinRef.current = totalMin; saveSession(delta, false); }
+  }, [swStartedAt, swBaseSec, saveSession]);
+
+  const stopStopwatch = useCallback(async () => {
+    const total = swStartedAt !== null
+      ? swBaseSec + Math.floor((Date.now() - swStartedAt) / 1000)
+      : swBaseSec;
+    setSwStartedAt(null);
+    setSwBaseSec(0);
+    setSwSeconds(0);
+    const totalMin = Math.floor(total / 60);
+    const delta = totalMin - swSavedMinRef.current;
+    if (delta >= 1) await saveSession(delta, false);
+    swSavedMinRef.current = 0;
+    if (totalMin >= 1) toast.success(`Stopwatch saved · ${totalMin} min added`);
+  }, [swStartedAt, swBaseSec, saveSession]);
+
+  // Lock: starting pomodoro should stop the stopwatch
+  const startLocked = useCallback(() => {
+    if (swStartedAt !== null) {
+      const total = swBaseSec + Math.floor((Date.now() - swStartedAt) / 1000);
+      setSwBaseSec(total);
+      setSwStartedAt(null);
+      setSwSeconds(total);
+      const totalMin = Math.floor(total / 60);
+      const delta = totalMin - swSavedMinRef.current;
+      if (delta >= 1) { swSavedMinRef.current = totalMin; saveSession(delta, false); }
+    }
+    start();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swStartedAt, swBaseSec, saveSession]);
+
+  const toggleLocked = () => (running ? pause() : startLocked());
+
   return (
     <Ctx.Provider value={{
       pomoMode, setPomoMode,
@@ -363,12 +460,14 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       customBreak, setCustomBreak,
       workMin, breakMin, mode, seconds, running, consecutiveWork,
       sessionsToday, studiedTodayMin,
-      start, pause, toggle, reset, skip, addStudyTime,
+      start: startLocked, pause, toggle: toggleLocked, reset, skip, addStudyTime,
+      swSeconds, swRunning, startStopwatch, pauseStopwatch, stopStopwatch,
     }}>
       {children}
     </Ctx.Provider>
   );
 };
+
 
 export const usePomodoro = () => {
   const v = useContext(Ctx);
