@@ -41,6 +41,13 @@ const Pomodoro = () => {
   } = usePomodoro();
   const { user } = useAuth();
 
+  // Selects a standard preset: if currently running, save partial then reset to new duration
+  const selectPreset = (work: number) => {
+    if (standardWork === work) return; // already selected
+    if (running) reset(); // saves any partial work time, then stops & resets
+    setStandardWork(work);
+  };
+
   const [tab, setTab] = useState<TopTab>(pomoMode === "custom" ? "custom" : "standard");
   useEffect(() => {
     if (tab === "standard") setPomoMode("standard");
@@ -224,8 +231,13 @@ const Pomodoro = () => {
             {STANDARD_PRESETS.map((p) => (
               <button
                 key={p.work}
-                onClick={() => { if (!running) setStandardWork(p.work); }}
-                className={`py-2 px-2 sm:px-3 rounded-lg text-xs font-medium transition-all ${standardWork === p.work ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+                onClick={() => selectPreset(p.work)}
+                title={running && standardWork !== p.work ? "Resets current session and starts new preset" : undefined}
+                className={`py-2 px-2 sm:px-3 rounded-lg text-xs font-medium transition-all ${
+                  standardWork === p.work
+                    ? "bg-primary text-primary-foreground ring-2 ring-primary/50"
+                    : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                }`}
               >
                 {p.label}
               </button>

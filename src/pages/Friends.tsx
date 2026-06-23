@@ -94,21 +94,22 @@ export default function Friends() {
       const map: Record<string, Profile> = {};
       (ps || []).forEach((p: any) => (map[p.user_id] = p));
       setProfilesById(map);
-
-      const accepted = fsList.filter((f) => f.status === "accepted");
-      const friendIds = accepted.map((f) => (f.requester_id === user.id ? f.addressee_id : f.requester_id));
-      const ids = [user.id, ...friendIds];
-      const monthStart = periodStart("month");
-      const { data: ss } = await supabase
-        .from("study_sessions")
-        .select("user_id, duration_minutes, completed_at, session_type")
-        .in("user_id", ids)
-        .gte("completed_at", monthStart.toISOString());
-      setSessions((ss || []) as any);
     } else {
       setProfilesById({});
-      setSessions([]);
     }
+
+    // Always fetch sessions for current user + accepted friends so the leaderboard
+    // shows the user's own study time even when they have no friends yet.
+    const accepted = fsList.filter((f) => f.status === "accepted");
+    const friendIds = accepted.map((f) => (f.requester_id === user.id ? f.addressee_id : f.requester_id));
+    const ids = [user.id, ...friendIds];
+    const monthStart = periodStart("month");
+    const { data: ss } = await supabase
+      .from("study_sessions")
+      .select("user_id, duration_minutes, completed_at, session_type")
+      .in("user_id", ids)
+      .gte("completed_at", monthStart.toISOString());
+    setSessions((ss || []) as any);
   };
 
   useEffect(() => {

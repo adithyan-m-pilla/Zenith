@@ -9,6 +9,7 @@ export type PomodoroMode = "standard" | "custom";
 const LONG_BREAK_AFTER = 4;
 const LONG_BREAK_MIN = 15;
 const TIMER_KEY = "zenith-pomodoro-timer";
+const SETTINGS_KEY = "zenith-pomodoro-settings";
 const SW_KEY = "zenith-stopwatch";
 
 
@@ -28,6 +29,14 @@ interface PersistState {
   customBreak: number;
 }
 
+// Persisted separately from timer runtime so settings survive page reload even when paused
+interface SettingsState {
+  pomoMode: PomodoroMode;
+  standardWork: number;
+  customWork: number;
+  customBreak: number;
+}
+
 function loadState(): PersistState | null {
   try {
     const raw = localStorage.getItem(TIMER_KEY);
@@ -36,6 +45,20 @@ function loadState(): PersistState | null {
   } catch {
     return null;
   }
+}
+
+function loadSettings(): SettingsState | null {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SettingsState;
+  } catch {
+    return null;
+  }
+}
+
+function saveSettings(s: SettingsState) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
 }
 
 function playNotificationSound() {
@@ -98,11 +121,19 @@ const Ctx = createContext<PomodoroCtx | null>(null);
 export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const saved = useRef(loadState());
+  // Always-persisted settings (survive page reload even when timer is paused)
+  const savedSettings = useRef(loadSettings());
 
-  const [pomoMode, setPomoMode] = useState<PomodoroMode>(saved.current?.pomoMode ?? "standard");
-  const [standardWork, setStandardWork] = useState(saved.current?.standardWork ?? 25);
-  const [customWork, setCustomWork] = useState(saved.current?.customWork ?? 25);
-  const [customBreak, setCustomBreak] = useState(saved.current?.customBreak ?? 5);
+  // Resolve initial setting values: prefer running-timer state, then settings, then defaults
+  const initPomoMode: PomodoroMode = saved.current?.pomoMode ?? savedSettings.current?.pomoMode ?? "standard";
+  const initStandardWork = saved.current?.standardWork ?? savedSettings.current?.standardWork ?? 25;
+  const initCustomWork = saved.current?.customWork ?? savedSettings.current?.customWork ?? 25;
+  const initCustomBreak = saved.current?.customBreak ?? savedSettings.current?.customBreak ?? 5;
+
+  const [pomoMode, setPomoMode] = useState<PomodoroMode>(initPomoMode);
+  const [standardWork, setStandardWork] = useState(initStandardWork);
+  const [customWork, setCustomWork] = useState(initCustomWork);
+  const [customBreak, setCustomBreak] = useState(initCustomBreak);
 
   const workMin = pomoMode === "standard" ? standardWork : customWork;
   const breakMin = pomoMode === "standard" ? getStandardBreak(standardWork) : customBreak;
@@ -114,7 +145,11 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   const [endTime, setEndTime] = useState<number | null>(initialRunning ? saved.current!.endTime : null);
   const [seconds, setSeconds] = useState(() => {
     if (initialRunning) return Math.max(0, Math.ceil((saved.current!.endTime - Date.now()) / 1000));
-    return (saved.current?.mode === "break" ? breakMin : workMin) * 60;
+    // Use the resolved initial work/break minutes (not derived state) to avoid stale 25-min default
+    const initWorkMin = initPomoMode === "standard" ? initStandardWork : initCustomWork;
+    const initBreakMin = initPomoMode === "standard" ? getStandardBreak(initStandardWork) : initCustomBreak;
+    const initMode = saved.current?.mode ?? "work";
+    return (initMode === "break" ? initBreakMin : initWorkMin) * 60;
   });
 
   const [sessionsToday, setSessionsToday] = useState(0);
@@ -139,7 +174,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     if (mode !== "work") savedMinutesRef.current = 0;
   }, [mode, endTime, workMin]);
 
-  // Persist state on changes
+  // Persist runtime timer state (only when running — cleared when paused/stopped)
   useEffect(() => {
     if (endTime !== null) {
       const state: PersistState = {
@@ -151,6 +186,11 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem(TIMER_KEY);
     }
   }, [endTime, mode, workMin, breakMin, pomoMode, consecutiveWork, standardWork, customWork, customBreak]);
+
+  // Always persist settings so the chosen preset survives page refresh even when the timer is paused
+  useEffect(() => {
+    saveSettings({ pomoMode, standardWork, customWork, customBreak });
+  }, [pomoMode, standardWork, customWork, customBreak]);
 
   // When not running and durations/mode change, sync seconds to full duration.
   // Important: do NOT reset on pause — preserve the remaining time so resume continues.
