@@ -106,22 +106,24 @@ export default function Friends() {
     const friendIds = accepted.map((f) => (f.requester_id === user.id ? f.addressee_id : f.requester_id));
     const ids = [user.id, ...friendIds];
     const monthStart = periodStart("month");
-    console.log("[Friends] Fetching sessions for month starting:", monthStart.toISOString());
+    console.log("[Friends] Fetching sessions - for IDs:", ids.slice(0, 1), "from:", monthStart.toISOString());
     const { data: ss, error: sessError } = await supabase
       .from("study_sessions")
       .select("user_id, duration_minutes, completed_at, session_type")
       .in("user_id", ids)
-      .gte("completed_at", monthStart.toISOString());
+      .gte("completed_at", monthStart.toISOString())
+      .order("completed_at", { ascending: false })
+      .limit(10);
     if (sessError) {
-      console.error("Failed to fetch sessions:", sessError);
+      console.error("[Friends] Failed to fetch sessions:", sessError);
     }
     if (ss && ss.length > 0) {
-      const recent = ss.slice(-3).map(s => ({ 
+      const recent = ss.slice(0, 3).map(s => ({ 
         user_id: s.user_id, 
         completed_at: new Date(s.completed_at).toISOString(), 
         duration: s.duration_minutes 
       }));
-      console.log("[Friends] Fetched sessions:", ss.length, "- Last 3:", JSON.stringify(recent));
+      console.log("[Friends] Fetched sessions (limited to 10, ordered newest first):", ss.length, "- Top 3:", JSON.stringify(recent));
     } else {
       console.log("[Friends] Fetched sessions: 0");
     }
