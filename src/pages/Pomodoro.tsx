@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Timer, Play, Pause, RotateCcw, Settings, StopCircle, Plus, Target } from "lucide-react";
+import { Timer, Play, Pause, RotateCcw, Settings, StopCircle, Plus, Target, Maximize2, Minimize2, Image as ImageIcon, X } from "lucide-react";
 import { usePomodoro } from "@/contexts/PomodoroContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,11 +8,12 @@ import { toast } from "sonner";
 type DisplayStyle = "digital" | "analog" | "minimal";
 type TopTab = "standard" | "custom" | "stopwatch";
 
+// Themes built from semantic tokens so they shift with the global app theme.
 const themes = [
-  { name: "Emerald", bg: "from-emerald-900/40 to-background", accent: "text-primary" },
-  { name: "Ocean", bg: "from-blue-900/40 to-background", accent: "text-info" },
-  { name: "Sunset", bg: "from-amber-900/40 to-background", accent: "text-warning" },
-  { name: "Rose", bg: "from-rose-900/40 to-background", accent: "text-destructive" },
+  { name: "Primary", bg: "from-primary/15 to-background", accent: "text-primary" },
+  { name: "Info",    bg: "from-info/15 to-background",    accent: "text-info" },
+  { name: "Warning", bg: "from-warning/15 to-background", accent: "text-warning" },
+  { name: "Rose",    bg: "from-destructive/15 to-background", accent: "text-destructive" },
 ];
 
 const STANDARD_PRESETS = [
@@ -25,6 +26,7 @@ const STANDARD_PRESETS = [
 ];
 
 const LONG_BREAK_AFTER = 4;
+const BG_KEY = "zenith-pomodoro-bg";
 
 const Pomodoro = () => {
   const {
@@ -34,93 +36,63 @@ const Pomodoro = () => {
     customBreak, setCustomBreak,
     workMin, breakMin, mode, seconds, running, consecutiveWork,
     sessionsToday,
-    toggle, reset, skip, pause, addStudyTime,
+    toggle, reset, skip, addStudyTime,
+    swSeconds, swRunning, startStopwatch, pauseStopwatch, stopStopwatch,
   } = usePomodoro();
   const { user } = useAuth();
 
-  // Top tab — pomodoro modes plus stopwatch
   const [tab, setTab] = useState<TopTab>(pomoMode === "custom" ? "custom" : "standard");
   useEffect(() => {
     if (tab === "standard") setPomoMode("standard");
     else if (tab === "custom") setPomoMode("custom");
+    // Stopwatch tab: leave pomoMode untouched. Switching tabs no longer pauses
+    // the stopwatch — it keeps running in the background.
   }, [tab, setPomoMode]);
 
   const [display, setDisplay] = useState<DisplayStyle>("digital");
   const [themeIdx, setThemeIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Daily goal pulled from user's profile (hours) — set in sidebar settings
+  // Fullscreen
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) await rootRef.current?.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch { /* ignore */ }
+  };
+
+  // Background image (URL stored in localStorage)
+  const [bgUrl, setBgUrl] = useState<string>(() => localStorage.getItem(BG_KEY) || "");
+  useEffect(() => {
+    if (bgUrl) localStorage.setItem(BG_KEY, bgUrl);
+    else localStorage.removeItem(BG_KEY);
+  }, [bgUrl]);
+  const onBgFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => setBgUrl(String(reader.result || ""));
+    reader.readAsDataURL(f);
+  };
+
+  // Daily goal from profile
   const [dailyGoalMin, setDailyGoalMin] = useState<number>(0);
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("profiles")
-      .select("daily_goal_hours")
-      .eq("user_id", user.id)
-      .maybeSingle()
+    supabase.from("profiles").select("daily_goal_hours").eq("user_id", user.id).maybeSingle()
       .then(({ data }) => {
         const hrs = Number(data?.daily_goal_hours ?? 0);
         if (hrs > 0) setDailyGoalMin(Math.round(hrs * 60));
       });
   }, [user]);
   const sessionsToGoal = dailyGoalMin > 0 ? Math.ceil(dailyGoalMin / Math.max(1, workMin)) : 0;
-
-  // ---- Stopwatch (count-up) ----
-  const [swRunning, setSwRunning] = useState(false);
-  const [swSeconds, setSwSeconds] = useState(0);
-  const swSavedMinRef = useRef(0);
-
-  useEffect(() => {
-    if (!swRunning) return;
-    const id = window.setInterval(() => setSwSeconds((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [swRunning]);
-
-  useEffect(() => {
-    if (!swRunning) return;
-    const totalMin = Math.floor(swSeconds / 60);
-    const delta = totalMin - swSavedMinRef.current;
-    if (delta >= 1) {
-      swSavedMinRef.current = totalMin;
-      addStudyTime(delta, false);
-    }
-  }, [swSeconds, swRunning, addStudyTime]);
-
-  const startStopwatch = () => {
-    if (running) pause(); // never clash with pomodoro
-    setSwRunning(true);
-  };
-  const pauseStopwatch = () => {
-    setSwRunning(false);
-    const totalMin = Math.floor(swSeconds / 60);
-    const delta = totalMin - swSavedMinRef.current;
-    if (delta >= 1) { swSavedMinRef.current = totalMin; addStudyTime(delta, false); }
-  };
-  const stopStopwatch = async () => {
-    setSwRunning(false);
-    const totalMin = Math.floor(swSeconds / 60);
-    const delta = totalMin - swSavedMinRef.current;
-    if (delta >= 1) await addStudyTime(delta, false);
-    if (totalMin >= 1) toast.success(`Stopwatch saved · ${totalMin} min added`);
-    swSavedMinRef.current = 0;
-    setSwSeconds(0);
-  };
-
-  // When switching tabs: stop the other timer to prevent overlap
-  useEffect(() => {
-    if (tab === "stopwatch") {
-      if (running) pause();
-    } else {
-      if (swRunning) pauseStopwatch();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
-
-  // When user starts pomodoro, ensure stopwatch is stopped
-  const togglePomodoro = () => {
-    if (!running && swRunning) pauseStopwatch();
-    toggle();
-  };
 
   // Manual session entry
   const [manualMin, setManualMin] = useState<string>("");
@@ -148,7 +120,6 @@ const Pomodoro = () => {
   const theme = themes[themeIdx];
 
   const renderAnalog = () => {
-    // For stopwatch: hands sweep based on elapsed; for pomodoro: progress-based
     const cx = 50, cy = 50;
     const minuteAngle = isStopwatch
       ? ((swSeconds / 60) % 60) * 6
@@ -156,7 +127,6 @@ const Pomodoro = () => {
     const secondAngle = isStopwatch
       ? (swSeconds % 60) * 6
       : (((60 - (seconds % 60)) % 60) / 60) * 360;
-
     return (
       <div className="relative w-56 h-56 sm:w-72 sm:h-72">
         <svg className="w-full h-full" viewBox="0 0 100 100">
@@ -170,17 +140,6 @@ const Pomodoro = () => {
               <line key={`h-${i}`} x1={cx + outerR * Math.cos(angle)} y1={cy + outerR * Math.sin(angle)}
                 x2={cx + innerR * Math.cos(angle)} y2={cy + innerR * Math.sin(angle)}
                 stroke="hsl(var(--foreground))" strokeWidth={i % 3 === 0 ? "1.2" : "0.5"} strokeLinecap="round" />
-            );
-          })}
-          {[12, 3, 6, 9].map((num) => {
-            const i = num === 12 ? 0 : num;
-            const angle = (i * 30 - 90) * (Math.PI / 180);
-            return (
-              <text key={`n-${num}`} x={cx + 34 * Math.cos(angle)} y={cy + 34 * Math.sin(angle)}
-                textAnchor="middle" dominantBaseline="central"
-                fill="hsl(var(--foreground))" fontSize="4" fontWeight="bold" fontFamily="sans-serif">
-                {num}
-              </text>
             );
           })}
           {!isStopwatch && (
@@ -207,7 +166,6 @@ const Pomodoro = () => {
             );
           })()}
           <circle cx={cx} cy={cy} r="2" fill="hsl(var(--foreground))" />
-          <circle cx={cx} cy={cy} r="1" fill="hsl(var(--background))" />
         </svg>
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">
           <span className={`font-heading text-base sm:text-lg font-bold ${theme.accent} tabular-nums`}>{formatTime(displaySec)}</span>
@@ -217,8 +175,16 @@ const Pomodoro = () => {
     );
   };
 
+  const bgStyle: React.CSSProperties = bgUrl
+    ? { backgroundImage: `linear-gradient(hsl(var(--background)/0.75), hsl(var(--background)/0.85)), url(${bgUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+    : {};
+
   return (
-    <div className={`space-y-4 sm:space-y-6 min-h-[calc(100vh-2rem)] bg-gradient-to-b ${theme.bg} -m-6 p-4 sm:p-6 rounded-xl transition-colors duration-500`}>
+    <div
+      ref={rootRef}
+      style={bgStyle}
+      className={`space-y-4 sm:space-y-6 min-h-[calc(100vh-2rem)] ${bgUrl ? "" : `bg-gradient-to-b ${theme.bg}`} -m-6 p-4 sm:p-6 rounded-xl transition-colors duration-500`}
+    >
       <div className="flex items-center justify-between animate-fade-in">
         <div>
           <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2 sm:gap-3">
@@ -229,9 +195,14 @@ const Pomodoro = () => {
             <span className="ml-2 text-primary font-medium">{sessionsToday} sessions today</span>
           </p>
         </div>
-        <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg hover:bg-secondary transition-colors">
-          <Settings className="w-5 h-5 text-muted-foreground" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={toggleFullscreen} title="Fullscreen" className="p-2 rounded-lg hover:bg-secondary transition-colors">
+            {isFullscreen ? <Minimize2 className="w-5 h-5 text-muted-foreground" /> : <Maximize2 className="w-5 h-5 text-muted-foreground" />}
+          </button>
+          <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg hover:bg-secondary transition-colors">
+            <Settings className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 animate-fade-in">
@@ -279,22 +250,47 @@ const Pomodoro = () => {
       )}
 
       {showSettings && (
-        <div className="glass-card p-3 sm:p-4 grid grid-cols-2 gap-3 sm:gap-4 animate-scale-in">
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Display</label>
-            <select value={display} onChange={(e) => setDisplay(e.target.value as DisplayStyle)}
-              className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
-              <option value="digital">Digital</option>
-              <option value="analog">Analog</option>
-              <option value="minimal">Minimal</option>
-            </select>
+        <div className="glass-card p-3 sm:p-4 space-y-3 sm:space-y-4 animate-scale-in">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Display</label>
+              <select value={display} onChange={(e) => setDisplay(e.target.value as DisplayStyle)}
+                className="w-full bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="digital">Digital</option>
+                <option value="analog">Analog</option>
+                <option value="minimal">Minimal</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Accent</label>
+              <div className="flex gap-2 mt-1">
+                {themes.map((t, i) => (
+                  <button key={t.name} onClick={() => setThemeIdx(i)} className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br ${t.bg} border-2 ${i === themeIdx ? "border-primary" : "border-transparent"}`} title={t.name} />
+                ))}
+              </div>
+            </div>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">Theme</label>
-            <div className="flex gap-2 mt-1">
-              {themes.map((t, i) => (
-                <button key={t.name} onClick={() => setThemeIdx(i)} className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br ${t.bg} border-2 ${i === themeIdx ? "border-primary" : "border-transparent"}`} title={t.name} />
-              ))}
+            <label className="text-xs text-muted-foreground block mb-1 flex items-center gap-1">
+              <ImageIcon className="w-3 h-3" /> Background image
+            </label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={bgUrl}
+                onChange={(e) => setBgUrl(e.target.value)}
+                placeholder="Paste image URL…"
+                className="flex-1 bg-secondary rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <label className="px-3 py-2 rounded-lg bg-secondary text-xs cursor-pointer hover:bg-secondary/80">
+                Upload
+                <input type="file" accept="image/*" className="hidden" onChange={onBgFile} />
+              </label>
+              {bgUrl && (
+                <button onClick={() => setBgUrl("")} className="p-2 rounded-lg bg-secondary hover:bg-destructive/20" title="Remove">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -329,7 +325,7 @@ const Pomodoro = () => {
               </button>
               <button
                 onClick={stopStopwatch}
-                disabled={swSeconds === 0}
+                disabled={swSeconds === 0 && !swRunning}
                 className="px-3 sm:px-4 py-2 rounded-full bg-secondary text-xs sm:text-sm text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-40 flex items-center gap-2"
               >
                 <StopCircle className="w-4 h-4" /> Stop & reset
@@ -341,7 +337,7 @@ const Pomodoro = () => {
                 <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 text-foreground" />
               </button>
               <button
-                onClick={togglePomodoro}
+                onClick={toggle}
                 className="p-4 sm:p-5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity animate-pulse-glow"
               >
                 {isRunning ? <Pause className="w-6 h-6 sm:w-7 sm:h-7" /> : <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />}
@@ -357,7 +353,6 @@ const Pomodoro = () => {
         </div>
       </div>
 
-      {/* Daily goal box — reads from your main daily goal (set in sidebar) */}
       {!isStopwatch && (
         <div className="glass-card p-3 sm:p-4 animate-fade-in flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
@@ -379,7 +374,6 @@ const Pomodoro = () => {
         </div>
       )}
 
-      {/* Manual session entry */}
       <div className="glass-card p-3 sm:p-4 animate-fade-in">
         <p className="text-xs sm:text-sm font-medium text-foreground mb-1">Add your session</p>
         <p className="text-[10px] text-muted-foreground mb-3">Log time you studied offline or away from the app</p>
