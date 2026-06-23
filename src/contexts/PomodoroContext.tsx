@@ -226,11 +226,17 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       subject: "Pomodoro",
       duration_minutes: minutes,
       session_type: isCompletion ? pomoMode : `${pomoMode}_partial`,
+      completed_at: new Date().toISOString(),
     });
     if (!error) {
-      if (isCompletion) setSessionsToday((c) => c + 1);
-      setStudiedTodayMin((c) => c + minutes);
-      if (isCompletion) toast.success(`Session complete! ${minutes} min recorded.`);
+      if (isCompletion) {
+        setSessionsToday((c) => c + 1);
+        setStudiedTodayMin((c) => c + minutes);
+        toast.success(`Session complete! ${minutes} min recorded.`, { position: "bottom-center" });
+      } else {
+        setStudiedTodayMin((c) => c + minutes);
+        toast(`⏱️ +${minutes} min study progress saved!`, { position: "bottom-center" });
+      }
     }
   }, [user, pomoMode]);
 
@@ -385,6 +391,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
             subject: "Pomodoro",
             duration_minutes: delta,
             session_type: `${pomoMode}_partial`,
+            completed_at: new Date().toISOString(),
           }),
         }).catch(() => {});
       } catch {}

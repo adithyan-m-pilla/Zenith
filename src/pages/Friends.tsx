@@ -115,8 +115,15 @@ export default function Friends() {
   useEffect(() => {
     loadAll();
     if (!user) return;
+
+    // Refresh immediately when returning to the Friends tab/window
+    window.addEventListener("focus", loadAll);
+
     const id = window.setInterval(loadAll, 30_000);
-    return () => clearInterval(id);
+    return () => {
+      window.removeEventListener("focus", loadAll);
+      clearInterval(id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
