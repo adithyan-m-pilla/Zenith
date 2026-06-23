@@ -59,6 +59,7 @@ export default function Friends() {
   const [sessions, setSessions] = useState<Array<{ user_id: string; duration_minutes: number; completed_at: string; session_type: string | null }>>([]);
   const [copied, setCopied] = useState(false);
   const [period, setPeriod] = useState<"day" | "week" | "month">("day");
+  const [now, setNow] = useState(Date.now()); // For live study time updates
 
   const inviteLink = useMemo(() => {
     if (!me?.invite_code) return "";
@@ -134,6 +135,8 @@ export default function Friends() {
     window.addEventListener("visibilitychange", onVisible);
     window.addEventListener("zenith:study-update", onStudyUpdate);
 
+    // Update every 1 second for live study time tracking
+    const updateInterval = window.setInterval(() => setNow(Date.now()), 1000);
     const id = window.setInterval(loadAll, 30_000);
     
     return () => {
@@ -141,6 +144,7 @@ export default function Friends() {
       window.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("zenith:study-update", onStudyUpdate);
       clearInterval(id);
+      clearInterval(updateInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, loadAll]);
@@ -267,9 +271,16 @@ export default function Friends() {
         const isMe = uid === user.id;
         const profile = isMe ? me : profilesById[uid];
         const studying = isActivelyStudying(profile);
+        // Add live elapsed time if actively studying
+        let liveMinutes = minutes;
+        if (studying && profile?.studying_since) {
+          const elapsedMs = now - new Date(profile.studying_since).getTime();
+          const elapsedMins = Math.max(0, elapsedMs / 1000 / 60);
+          liveMinutes = minutes + elapsedMins;
+        }
         return {
           uid,
-          minutes,
+          minutes: liveMinutes,
           name:
             isMe
               ? (me?.display_name || "You") + " (you)"
@@ -279,7 +290,7 @@ export default function Friends() {
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [accepted, sessions, period, profilesById, me, user]);
+  }, [accepted, sessions, period, profilesById, me, user, now];
 
   const fmt = (m: number) => {
     const h = Math.floor(m / 60);
