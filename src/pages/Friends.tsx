@@ -34,14 +34,15 @@ type Friendship = {
 
 const periodStart = (period: "day" | "week" | "month") => {
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
+  // Convert to UTC-based date for comparison with UTC session dates
+  const utcDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
   if (period === "week") {
-    const day = (d.getDay() + 6) % 7; // Monday-start
-    d.setDate(d.getDate() - day);
+    const day = (utcDate.getUTCDay() + 6) % 7; // Monday-start
+    utcDate.setUTCDate(utcDate.getUTCDate() - day);
   } else if (period === "month") {
-    d.setDate(1);
+    utcDate.setUTCDate(1);
   }
-  return d;
+  return utcDate;
 };
 
 export default function Friends() {
@@ -255,29 +256,21 @@ export default function Friends() {
   const leaderboard = useMemo(() => {
     if (!user) return [];
     const start = periodStart(period);
-    console.log(`[Friends] Leaderboard calc - period: ${period}`);
-    console.log(`  Start date:`, start);
-    console.log(`  Session count: ${sessions.length}`);
-    if (sessions.length > 0) {
-      console.log(`  First 3 session dates:`, sessions.slice(0, 3).map(s => ({ user_id: s.user_id, completed_at: s.completed_at, duration: s.duration_minutes })));
-    }
     const totals: Record<string, number> = { [user.id]: 0 };
     accepted.forEach((f) => {
       const fid = f.requester_id === user.id ? f.addressee_id : f.requester_id;
       totals[fid] = 0;
     });
-    console.log(`  Tracking ${Object.keys(totals).length} users`);
     let includedCount = 0;
     sessions.forEach((s) => {
       const sDate = new Date(s.completed_at);
-      console.log(`  Session date: ${sDate.toISOString()} vs start: ${start.toISOString()}, include: ${sDate >= start}`);
       if (sDate < start) return;
       includedCount++;
       if (totals[s.user_id] !== undefined) {
         totals[s.user_id] += s.duration_minutes || 0;
       }
     });
-    console.log(`  Included ${includedCount}/${sessions.length} sessions. Totals:`, totals);
+    console.log(`[Friends] Leaderboard for period ${period}: ${includedCount}/${sessions.length} sessions included. Totals:`, totals);
     return Object.entries(totals)
       .map(([uid, minutes]) => {
         const isMe = uid === user.id;
