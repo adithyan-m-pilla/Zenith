@@ -398,11 +398,11 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     setEndTime(null);
   };
 
-  const addStudyTime = useCallback(async (minutes: number, asCompletedSession = true) => {
+  const addStudyTime = async (minutes: number, asCompletedSession = true) => {
     const m = Math.max(0, Math.floor(minutes));
     if (m <= 0) return;
     await saveSession(m, asCompletedSession);
-  }, [saveSession]);
+  };
 
   // ============ Stopwatch (persistent count-up) ============
   type SwPersist = { startedAt: number | null; baseSec: number };
@@ -439,7 +439,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     return () => clearInterval(id);
   }, [swRunning, swStartedAt, swBaseSec, saveSession]);
 
-  const startStopwatch = useCallback(() => {
+  const startStopwatch = () => {
     if (endTime !== null) {
       // Single active-session lock: pause pomodoro first
       savePartialIfWork();
@@ -447,10 +447,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     }
     if (swStartedAt !== null) return;
     setSwStartedAt(Date.now());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [swStartedAt, endTime]);
+  };
 
-  const pauseStopwatch = useCallback(() => {
+  const pauseStopwatch = () => {
     if (swStartedAt === null) return;
     const total = swBaseSec + Math.floor((Date.now() - swStartedAt) / 1000);
     setSwBaseSec(total);
@@ -459,9 +458,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     const totalMin = Math.floor(total / 60);
     const delta = totalMin - swSavedMinRef.current;
     if (delta >= 1) { swSavedMinRef.current = totalMin; saveSession(delta, false); }
-  }, [swStartedAt, swBaseSec, saveSession]);
+  };
 
-  const stopStopwatch = useCallback(async () => {
+  const stopStopwatch = async () => {
     const total = swStartedAt !== null
       ? swBaseSec + Math.floor((Date.now() - swStartedAt) / 1000)
       : swBaseSec;
@@ -473,10 +472,10 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     if (delta >= 1) await saveSession(delta, false);
     swSavedMinRef.current = 0;
     if (totalMin >= 1) toast.success(`Stopwatch saved · ${totalMin} min added`);
-  }, [swStartedAt, swBaseSec, saveSession]);
+  };
 
   // Lock: starting pomodoro should stop the stopwatch
-  const startLocked = useCallback(() => {
+  const startLocked = () => {
     if (swStartedAt !== null) {
       const total = swBaseSec + Math.floor((Date.now() - swStartedAt) / 1000);
       setSwBaseSec(total);
@@ -487,8 +486,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       if (delta >= 1) { swSavedMinRef.current = totalMin; saveSession(delta, false); }
     }
     start();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [swStartedAt, swBaseSec, saveSession]);
+  };
 
   const toggleLocked = () => (running ? pause() : startLocked());
 
