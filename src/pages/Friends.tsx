@@ -67,7 +67,7 @@ export default function Friends() {
 
   const loadAll = useCallback(async () => {
     if (!user) return;
-    console.log("[Friends] Loading all data");
+    console.log("[Friends] Loading all data - userID:", user.id);
     const { data: myProfile } = await supabase
       .from("profiles")
       .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
@@ -106,6 +106,7 @@ export default function Friends() {
     const friendIds = accepted.map((f) => (f.requester_id === user.id ? f.addressee_id : f.requester_id));
     const ids = [user.id, ...friendIds];
     const monthStart = periodStart("month");
+    console.log("[Friends] Fetching sessions for month starting:", monthStart.toISOString());
     const { data: ss, error: sessError } = await supabase
       .from("study_sessions")
       .select("user_id, duration_minutes, completed_at, session_type")
@@ -114,7 +115,11 @@ export default function Friends() {
     if (sessError) {
       console.error("Failed to fetch sessions:", sessError);
     }
-    console.log("[Friends] Fetched sessions:", ss?.length || 0);
+    if (ss && ss.length > 0) {
+      console.log("[Friends] Fetched sessions:", ss.length, "- Recent:", ss.slice(-3).map(s => ({ user_id: s.user_id, completed_at: s.completed_at, duration: s.duration_minutes })));
+    } else {
+      console.log("[Friends] Fetched sessions: 0");
+    }
     setSessions((ss || []) as any);
   }, [user]);
 
