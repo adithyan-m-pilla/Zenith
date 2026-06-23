@@ -67,7 +67,6 @@ export default function Friends() {
 
   const loadAll = useCallback(async () => {
     if (!user) return;
-    console.log("[Friends] Loading all data - userID:", user.id);
     const { data: myProfile } = await supabase
       .from("profiles")
       .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
@@ -106,67 +105,39 @@ export default function Friends() {
     const friendIds = accepted.map((f) => (f.requester_id === user.id ? f.addressee_id : f.requester_id));
     const ids = [user.id, ...friendIds];
     const monthStart = periodStart("month");
-    console.log("[Friends] Fetching sessions - for IDs:", ids.slice(0, 1), "from:", monthStart.toISOString());
     const { data: ss, error: sessError } = await supabase
       .from("study_sessions")
       .select("user_id, duration_minutes, completed_at, session_type")
       .in("user_id", ids)
-      .gte("completed_at", monthStart.toISOString())
-      .order("completed_at", { ascending: false })
-      .limit(10);
+      .gte("completed_at", monthStart.toISOString());
     if (sessError) {
-      console.error("[Friends] Failed to fetch sessions:", sessError);
-    }
-    if (ss && ss.length > 0) {
-      const recent = ss.slice(0, 3).map(s => ({ 
-        user_id: s.user_id, 
-        completed_at: new Date(s.completed_at).toISOString(), 
-        duration: s.duration_minutes 
-      }));
-      console.log("[Friends] Fetched sessions (limited to 10, ordered newest first):", ss.length, "- Top 3:", JSON.stringify(recent));
-    } else {
-      console.log("[Friends] Fetched sessions: 0");
+      console.error("Failed to fetch sessions:", sessError);
     }
     setSessions((ss || []) as any);
   }, [user]);
 
   useEffect(() => {
-    console.log("[Friends] useEffect mounted, setting up listeners");
     loadAll();
-    if (!user) {
-      console.log("[Friends] No user, skipping");
-      return;
-    }
+    if (!user) return;
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        console.log("[Friends] Page visible, refreshing");
         loadAll();
       }
     };
 
     const onStudyUpdate = () => {
-      console.log("[Friends] !!! STUDY UPDATE EVENT FIRED !!!");
       loadAll();
     };
 
-    const onFocus = () => {
-      console.log("[Friends] Window focus event");
-      loadAll();
-    };
-
-    window.addEventListener("focus", onFocus);
+    window.addEventListener("focus", loadAll);
     window.addEventListener("visibilitychange", onVisible);
     window.addEventListener("zenith:study-update", onStudyUpdate);
 
-    const id = window.setInterval(() => {
-      console.log("[Friends] 30s interval refresh");
-      loadAll();
-    }, 30_000);
+    const id = window.setInterval(loadAll, 30_000);
     
     return () => {
-      console.log("[Friends] useEffect cleanup - removing listeners");
-      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("focus", loadAll);
       window.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("zenith:study-update", onStudyUpdate);
       clearInterval(id);
@@ -291,7 +262,6 @@ export default function Friends() {
         totals[s.user_id] += s.duration_minutes || 0;
       }
     });
-    console.log(`[Friends] Leaderboard for period ${period}: ${includedCount}/${sessions.length} sessions included. Totals:`, totals);
     return Object.entries(totals)
       .map(([uid, minutes]) => {
         const isMe = uid === user.id;
