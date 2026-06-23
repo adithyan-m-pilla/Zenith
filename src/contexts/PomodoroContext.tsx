@@ -216,8 +216,16 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       .from("profiles")
       .update({ is_studying: studying, studying_since: studying ? new Date().toISOString() : null })
       .eq("user_id", user.id)
-      .then(() => {});
+      .then(() => {
+        dispatchStudyUpdate();
+      });
   }, [user, endTime, mode]);
+
+  const dispatchStudyUpdate = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("zenith:study-update"));
+    }
+  }, []);
 
   const saveSession = useCallback(async (minutes: number, isCompletion = false) => {
     if (!user || minutes <= 0) return;
@@ -237,8 +245,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
         setStudiedTodayMin((c) => c + minutes);
         toast(`⏱️ +${minutes} min study progress saved!`, { position: "bottom-center" });
       }
+      dispatchStudyUpdate();
     }
-  }, [user, pomoMode]);
+  }, [user, pomoMode, dispatchStudyUpdate]);
 
   // Global tick - runs as long as provider is mounted (entire app)
   useEffect(() => {

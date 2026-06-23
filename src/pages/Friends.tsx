@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export default function Friends() {
     return `${window.location.origin}/friends?invite=${me.invite_code}`;
   }, [me]);
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     if (!user) return;
     const { data: myProfile } = await supabase
       .from("profiles")
@@ -110,22 +110,29 @@ export default function Friends() {
       .in("user_id", ids)
       .gte("completed_at", monthStart.toISOString());
     setSessions((ss || []) as any);
-  };
+  }, [user]);
 
   useEffect(() => {
     loadAll();
     if (!user) return;
 
-    // Refresh immediately when returning to the Friends tab/window
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadAll();
+    };
+
     window.addEventListener("focus", loadAll);
+    window.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("zenith:study-update", loadAll);
 
     const id = window.setInterval(loadAll, 30_000);
     return () => {
       window.removeEventListener("focus", loadAll);
+      window.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("zenith:study-update", loadAll);
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, loadAll]);
 
   // Auto-add from invite link
   useEffect(() => {
