@@ -9,8 +9,10 @@ export interface Chapter {
   is_completed: boolean;
   completed_date: string | null;
   revisions_completed: number;
+  last_revision_date: string | null;
   subject_id: string;
 }
+
 
 export interface Subject {
   id: string;
@@ -49,8 +51,10 @@ export function useSyllabus() {
           is_completed: c.is_completed,
           completed_date: c.completed_date,
           revisions_completed: c.revisions_completed,
+          last_revision_date: c.last_revision_date ?? null,
           subject_id: c.subject_id,
         })),
+
     }));
     setSubjects(subs);
     setLoading(false);
@@ -98,6 +102,21 @@ export function useSyllabus() {
         is_completed: newCompleted,
         completed_date: newCompleted ? new Date().toISOString().split("T")[0] : null,
         revisions_completed: newCompleted ? 0 : chapter.revisions_completed,
+        last_revision_date: null,
+      })
+      .eq("id", chapter.id);
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else await fetchData();
+  };
+
+  /** Mark the currently-due review as done. Next review will be scheduled from today. */
+  const markRevisionDone = async (chapter: Chapter) => {
+    const today = new Date().toISOString().split("T")[0];
+    const { error } = await supabase
+      .from("chapters")
+      .update({
+        revisions_completed: chapter.revisions_completed + 1,
+        last_revision_date: today,
       })
       .eq("id", chapter.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -115,8 +134,10 @@ export function useSyllabus() {
     addChapter,
     deleteChapter,
     toggleChapter,
+    markRevisionDone,
     totalChapters,
     completedChapters,
     refetch: fetchData,
   };
 }
+

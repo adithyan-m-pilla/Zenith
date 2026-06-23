@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           id: string
           is_completed: boolean
+          last_revision_date: string | null
           name: string
           revisions_completed: number
           subject_id: string
@@ -30,6 +31,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_completed?: boolean
+          last_revision_date?: string | null
           name: string
           revisions_completed?: number
           subject_id: string
@@ -40,6 +42,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_completed?: boolean
+          last_revision_date?: string | null
           name?: string
           revisions_completed?: number
           subject_id?: string
