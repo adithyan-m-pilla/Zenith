@@ -223,6 +223,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
 
   const dispatchStudyUpdate = useCallback(() => {
     if (typeof window !== "undefined") {
+      console.log("[Pomodoro] Dispatching zenith:study-update event");
       window.dispatchEvent(new Event("zenith:study-update"));
     }
   }, []);
@@ -236,7 +237,10 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       session_type: isCompletion ? pomoMode : `${pomoMode}_partial`,
       completed_at: new Date().toISOString(),
     });
-    if (!error) {
+    if (error) {
+      console.error("Failed to save session:", error);
+      toast.error(`Session save failed: ${error.message}`, { position: "bottom-center" });
+    } else {
       if (isCompletion) {
         setSessionsToday((c) => c + 1);
         setStudiedTodayMin((c) => c + minutes);

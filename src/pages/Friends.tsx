@@ -66,6 +66,7 @@ export default function Friends() {
 
   const loadAll = useCallback(async () => {
     if (!user) return;
+    console.log("[Friends] Loading all data");
     const { data: myProfile } = await supabase
       .from("profiles")
       .select("user_id, display_name, username, invite_code, avatar_url, is_studying, studying_since")
@@ -104,11 +105,15 @@ export default function Friends() {
     const friendIds = accepted.map((f) => (f.requester_id === user.id ? f.addressee_id : f.requester_id));
     const ids = [user.id, ...friendIds];
     const monthStart = periodStart("month");
-    const { data: ss } = await supabase
+    const { data: ss, error: sessError } = await supabase
       .from("study_sessions")
       .select("user_id, duration_minutes, completed_at, session_type")
       .in("user_id", ids)
       .gte("completed_at", monthStart.toISOString());
+    if (sessError) {
+      console.error("Failed to fetch sessions:", sessError);
+    }
+    console.log("[Friends] Fetched sessions:", ss?.length || 0);
     setSessions((ss || []) as any);
   }, [user]);
 
@@ -117,18 +122,26 @@ export default function Friends() {
     if (!user) return;
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") loadAll();
+      if (document.visibilityState === "visible") {
+        console.log("[Friends] Page visible, refreshing");
+        loadAll();
+      }
+    };
+
+    const onStudyUpdate = () => {
+      console.log("[Friends] Study update event received, refreshing");
+      loadAll();
     };
 
     window.addEventListener("focus", loadAll);
     window.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("zenith:study-update", loadAll);
+    window.addEventListener("zenith:study-update", onStudyUpdate);
 
     const id = window.setInterval(loadAll, 30_000);
     return () => {
       window.removeEventListener("focus", loadAll);
       window.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("zenith:study-update", loadAll);
+      window.removeEventListener("zenith:study-update", onStudyUpdate);
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
