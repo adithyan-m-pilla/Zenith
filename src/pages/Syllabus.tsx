@@ -116,8 +116,9 @@ const Syllabus = () => {
                       const revInfo = ch.is_completed && ch.completed_date
                         ? ch.revisions_completed >= REVISION_INTERVALS.length
                           ? { label: "All reviews done ✓", date: "" }
-                          : { label: getRevisionLabel(ch.revisions_completed), date: getRevisionDueDate(ch.completed_date, ch.revisions_completed) }
+                          : { label: getRevisionLabel(ch.revisions_completed), date: getRevisionDueDate(ch.completed_date, ch.revisions_completed, ch.last_revision_date) }
                         : null;
+
                       const isToggling = togglingId === ch.id;
                       return (
                         <div key={ch.id}>
