@@ -304,7 +304,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     if (mode !== "work" || endTime === null) return;
     const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
     const elapsedSec = workMin * 60 - remaining;
-    const totalMinutes = Math.round(elapsedSec / 60);
+    const totalMinutes = Math.floor(elapsedSec / 60);
     const delta = totalMinutes - savedMinutesRef.current;
     if (delta >= 1) {
       savedMinutesRef.current = totalMinutes;
@@ -322,28 +322,51 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
 
   // On tab close / refresh: save remaining partial work time via keepalive fetch
   useEffect(() => {
-    const flush = () => {
+    const flush = (isUnload = false) => {
       const { mode: m, endTime: et, workMin: wm, userId } = stateRef.current;
+      const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      let token = apikey;
+      try {
+        const keys = Object.keys(localStorage).filter((k) => k.startsWith("sb-") && k.endsWith("-auth-token"));
+        if (keys[0]) {
+          const parsed = JSON.parse(localStorage.getItem(keys[0]) || "{}");
+          if (parsed?.access_token) token = parsed.access_token;
+        }
+      } catch {}
+
+      if (isUnload) {
+        // Clear running timer state so it doesn't resume on reopen
+        localStorage.removeItem(TIMER_KEY);
+
+        // Turn off studying flag in database immediately
+        if (userId) {
+          const urlProfile = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
+          fetch(urlProfile, {
+            method: "PATCH",
+            keepalive: true,
+            headers: {
+              "Content-Type": "application/json",
+              apikey,
+              Authorization: `Bearer ${token}`,
+              Prefer: "return=minimal",
+            },
+            body: JSON.stringify({
+              is_studying: false,
+              studying_since: null,
+            }),
+          }).catch(() => {});
+        }
+      }
+
       if (!userId || m !== "work" || et === null) return;
       const remaining = Math.max(0, Math.ceil((et - Date.now()) / 1000));
       const elapsedSec = wm * 60 - remaining;
-      const totalMinutes = Math.round(elapsedSec / 60);
+      const totalMinutes = Math.floor(elapsedSec / 60);
       const delta = totalMinutes - savedMinutesRef.current;
       if (delta < 1) return;
       savedMinutesRef.current = totalMinutes;
       try {
         const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/study_sessions`;
-        const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        const session = (supabase.auth as any).currentSession?.() ?? null;
-        // Fallback to localStorage-stored token
-        let token = apikey;
-        try {
-          const keys = Object.keys(localStorage).filter((k) => k.startsWith("sb-") && k.endsWith("-auth-token"));
-          if (keys[0]) {
-            const parsed = JSON.parse(localStorage.getItem(keys[0]) || "{}");
-            if (parsed?.access_token) token = parsed.access_token;
-          }
-        } catch {}
         fetch(url, {
           method: "POST",
           keepalive: true,
@@ -362,8 +385,9 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
         }).catch(() => {});
       } catch {}
     };
-    const onHide = () => flush();
-    const onVis = () => { if (document.visibilityState === "hidden") flush(); };
+
+    const onHide = () => flush(true);
+    const onVis = () => { if (document.visibilityState === "hidden") flush(false); };
     window.addEventListener("pagehide", onHide);
     window.addEventListener("beforeunload", onHide);
     document.addEventListener("visibilitychange", onVis);
