@@ -267,6 +267,17 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
         }
       } else {
         setSeconds(remaining);
+        
+        // Auto-save every completed minute during work mode
+        if (mode === "work") {
+          const elapsedSec = workMin * 60 - remaining;
+          const totalMinutes = Math.floor(elapsedSec / 60);
+          const delta = totalMinutes - savedMinutesRef.current;
+          if (delta >= 1) {
+            savedMinutesRef.current = totalMinutes;
+            saveSession(delta);
+          }
+        }
       }
     };
     tick();
@@ -312,13 +323,6 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Auto-save partial progress every minute, even if user never pauses
-  useEffect(() => {
-    if (endTime === null || mode !== "work") return;
-    const id = window.setInterval(() => savePartialIfWork(), 60_000);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endTime, mode, workMin]);
 
   // On tab close / refresh: save remaining partial work time via keepalive fetch
   useEffect(() => {
