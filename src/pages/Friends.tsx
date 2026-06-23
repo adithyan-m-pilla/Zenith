@@ -233,15 +233,21 @@ export default function Friends() {
       if (totals[s.user_id] !== undefined) totals[s.user_id] += s.duration_minutes || 0;
     });
     return Object.entries(totals)
-      .map(([uid, minutes]) => ({
-        uid,
-        minutes,
-        name:
-          uid === user.id
-            ? (me?.display_name || "You") + " (you)"
-            : profilesById[uid]?.display_name || profilesById[uid]?.username || "Friend",
-        username: uid === user.id ? me?.username : profilesById[uid]?.username,
-      }))
+      .map(([uid, minutes]) => {
+        const isMe = uid === user.id;
+        const profile = isMe ? me : profilesById[uid];
+        const studying = isActivelyStudying(profile);
+        return {
+          uid,
+          minutes,
+          name:
+            isMe
+              ? (me?.display_name || "You") + " (you)"
+              : profile?.display_name || profile?.username || "Friend",
+          username: isMe ? me?.username : profile?.username,
+          studying,
+        };
+      })
       .sort((a, b) => b.minutes - a.minutes);
   }, [accepted, sessions, period, profilesById, me, user]);
 
@@ -401,7 +407,20 @@ export default function Friends() {
                     {i + 1}
                   </span>
                   <div>
-                    <p className="text-sm font-medium">{row.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{row.name}</p>
+                      {row.studying && (
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" title="Studying now"></span>
+                        </span>
+                      )}
+                      {row.studying && (
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-emerald-600">
+                          studying
+                        </span>
+                      )}
+                    </div>
                     {row.username && <p className="text-xs text-muted-foreground">@{row.username}</p>}
                   </div>
                 </div>
