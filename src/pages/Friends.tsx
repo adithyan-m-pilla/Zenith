@@ -290,7 +290,7 @@ export default function Friends() {
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [accepted, sessions, period, profilesById, me, user, now];
+  }, [accepted, sessions, period, profilesById, me, user, now]);
 
   const fmt = (m: number) => {
     const h = Math.floor(m / 60);
