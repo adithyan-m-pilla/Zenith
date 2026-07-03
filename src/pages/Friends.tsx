@@ -20,10 +20,10 @@ type Profile = {
   studying_since?: string | null;
 };
 
-// Consider a friend "studying" only if they started within the last 2h (guards against stale flags)
+// Consider a friend "studying" only if they started within the last 24h (guards against stale flags)
 const isActivelyStudying = (p?: Profile | null) => {
   if (!p?.is_studying || !p.studying_since) return false;
-  return Date.now() - new Date(p.studying_since).getTime() < 2 * 60 * 60 * 1000;
+  return Date.now() - new Date(p.studying_since).getTime() < 24 * 60 * 60 * 1000;
 };
 
 type Friendship = {
