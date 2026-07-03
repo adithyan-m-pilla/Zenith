@@ -293,8 +293,9 @@ export default function Friends() {
   }, [accepted, sessions, period, profilesById, me, user, now]);
 
   const fmt = (m: number) => {
-    const h = Math.floor(m / 60);
-    const mm = m % 60;
+    const total = Math.floor(m);
+    const h = Math.floor(total / 60);
+    const mm = total % 60;
     return h ? `${h}h ${mm}m` : `${mm}m`;
   };
 
