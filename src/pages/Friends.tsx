@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePomodoro } from "@/contexts/PomodoroContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,8 @@ const periodStart = (period: "day" | "week" | "month") => {
 
 export default function Friends() {
   const { user } = useAuth();
+  const { running: pomoRunning, mode: pomoModeType, swRunning } = usePomodoro();
+  const meIsStudying = (pomoRunning && pomoModeType === "work") || swRunning;
   const { toast } = useToast();
   const [me, setMe] = useState<Profile | null>(null);
   const [usernameInput, setUsernameInput] = useState("");
@@ -263,24 +266,27 @@ export default function Friends() {
       if (sDate < start) return;
       includedCount++;
       if (totals[s.user_id] !== undefined) {
-        totals[s.user_id] += s.duration_minutes || 0;
+        // Defensive: floor + cap per-row to guard against corrupted rows
+        const d = Math.min(1440, Math.max(0, Math.floor(s.duration_minutes || 0)));
+        totals[s.user_id] += d;
       }
     });
     return Object.entries(totals)
       .map(([uid, minutes]) => {
         const isMe = uid === user.id;
         const profile = isMe ? me : profilesById[uid];
-        const studying = isActivelyStudying(profile);
-        // Add live elapsed time if actively studying
+        // For current user, trust local timer state; for friends, use DB flag (with 2h staleness guard)
+        const studying = isMe ? meIsStudying : isActivelyStudying(profile);
+        // Add live elapsed time if actively studying (cap at 2h safety)
         let liveMinutes = minutes;
         if (studying && profile?.studying_since) {
           const elapsedMs = now - new Date(profile.studying_since).getTime();
-          const elapsedMins = Math.max(0, elapsedMs / 1000 / 60);
+          const elapsedMins = Math.min(120, Math.max(0, Math.floor(elapsedMs / 1000 / 60)));
           liveMinutes = minutes + elapsedMins;
         }
         return {
           uid,
-          minutes: liveMinutes,
+          minutes: Math.floor(liveMinutes),
           name:
             isMe
               ? (me?.display_name || "You") + " (you)"
@@ -290,7 +296,7 @@ export default function Friends() {
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [accepted, sessions, period, profilesById, me, user, now]);
+  }, [accepted, sessions, period, profilesById, me, user, now, meIsStudying]);
 
   const fmt = (m: number) => {
     const total = Math.floor(m);
@@ -484,9 +490,9 @@ export default function Friends() {
             const fid = f.requester_id === user?.id ? f.addressee_id : f.requester_id;
             const p = profilesById[fid];
             const todayStart = periodStart("day");
-            const todayMin = sessions
+            const todayMin = Math.floor(sessions
               .filter((s) => s.user_id === fid && new Date(s.completed_at) >= todayStart)
-              .reduce((a, s) => a + (s.duration_minutes || 0), 0);
+              .reduce((a, s) => a + Math.min(1440, Math.max(0, Math.floor(s.duration_minutes || 0))), 0));
             const studying = isActivelyStudying(p);
             return (
               <div key={f.id} className="flex items-center justify-between p-3 rounded-md bg-muted/40">

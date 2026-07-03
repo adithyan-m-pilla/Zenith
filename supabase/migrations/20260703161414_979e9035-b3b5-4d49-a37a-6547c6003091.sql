@@ -1,0 +1,1 @@
+DELETE FROM public.study_sessions WHERE duration_minutes > 1440;
