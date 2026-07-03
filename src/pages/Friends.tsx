@@ -20,10 +20,10 @@ type Profile = {
   studying_since?: string | null;
 };
 
-// Consider a friend "studying" only if they started within the last 2h (guards against stale flags)
+// Consider a friend "studying" only if they started within the last 24h (guards against stale flags)
 const isActivelyStudying = (p?: Profile | null) => {
   if (!p?.is_studying || !p.studying_since) return false;
-  return Date.now() - new Date(p.studying_since).getTime() < 2 * 60 * 60 * 1000;
+  return Date.now() - new Date(p.studying_since).getTime() < 24 * 60 * 60 * 1000;
 };
 
 type Friendship = {
@@ -277,11 +277,11 @@ export default function Friends() {
         const profile = isMe ? me : profilesById[uid];
         // For current user, trust local timer state; for friends, use DB flag (with 2h staleness guard)
         const studying = isMe ? meIsStudying : isActivelyStudying(profile);
-        // Add live elapsed time if actively studying (cap at 2h safety)
+        // Add live elapsed time if actively studying (cap at 24h safety)
         let liveMinutes = minutes;
         if (studying && profile?.studying_since) {
           const elapsedMs = now - new Date(profile.studying_since).getTime();
-          const elapsedMins = Math.min(120, Math.max(0, Math.floor(elapsedMs / 1000 / 60)));
+          const elapsedMins = Math.min(1440, Math.max(0, Math.floor(elapsedMs / 1000 / 60)));
           liveMinutes = minutes + elapsedMins;
         }
         return {
