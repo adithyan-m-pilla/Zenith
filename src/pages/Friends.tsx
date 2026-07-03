@@ -490,9 +490,9 @@ export default function Friends() {
             const fid = f.requester_id === user?.id ? f.addressee_id : f.requester_id;
             const p = profilesById[fid];
             const todayStart = periodStart("day");
-            const todayMin = sessions
+            const todayMin = Math.floor(sessions
               .filter((s) => s.user_id === fid && new Date(s.completed_at) >= todayStart)
-              .reduce((a, s) => a + (s.duration_minutes || 0), 0);
+              .reduce((a, s) => a + Math.min(1440, Math.max(0, Math.floor(s.duration_minutes || 0))), 0));
             const studying = isActivelyStudying(p);
             return (
               <div key={f.id} className="flex items-center justify-between p-3 rounded-md bg-muted/40">
