@@ -228,11 +228,14 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const saveSession = useCallback(async (minutes: number, isCompletion = false) => {
-    if (!user || minutes <= 0) return;
+    if (!user) return;
+    // Sanitize: whole minutes, and cap at 8h to prevent runaway/corrupted values
+    const safeMinutes = Math.min(480, Math.max(0, Math.floor(minutes)));
+    if (safeMinutes <= 0) return;
     const { error } = await supabase.from("study_sessions").insert({
       user_id: user.id,
       subject: "Pomodoro",
-      duration_minutes: minutes,
+      duration_minutes: safeMinutes,
       session_type: isCompletion ? pomoMode : `${pomoMode}_partial`,
       completed_at: new Date().toISOString(),
     });
@@ -242,11 +245,11 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     } else {
       if (isCompletion) {
         setSessionsToday((c) => c + 1);
-        setStudiedTodayMin((c) => c + minutes);
-        toast.success(`Session complete! ${minutes} min recorded.`, { position: "bottom-center" });
+        setStudiedTodayMin((c) => c + safeMinutes);
+        toast.success(`Session complete! ${safeMinutes} min recorded.`, { position: "bottom-center" });
       } else {
-        setStudiedTodayMin((c) => c + minutes);
-        toast(`⏱️ +${minutes} min study progress saved!`, { position: "bottom-center" });
+        setStudiedTodayMin((c) => c + safeMinutes);
+        toast(`⏱️ +${safeMinutes} min study progress saved!`, { position: "bottom-center" });
       }
       dispatchStudyUpdate();
     }
