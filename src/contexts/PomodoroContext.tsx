@@ -458,8 +458,14 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   // ============ Stopwatch (persistent count-up) ============
   type SwPersist = { startedAt: number | null; baseSec: number };
   const swSaved = useRef<SwPersist>((() => {
-    try { return JSON.parse(localStorage.getItem(SW_KEY) || "") as SwPersist; }
-    catch { return { startedAt: null, baseSec: 0 }; }
+    try {
+      const s = JSON.parse(localStorage.getItem(SW_KEY) || "") as SwPersist;
+      // Guard: if startedAt is stale (older than 4h), don't auto-resume — treat as abandoned
+      if (s?.startedAt && Date.now() - s.startedAt > 4 * 60 * 60 * 1000) {
+        return { startedAt: null, baseSec: 0 };
+      }
+      return s;
+    } catch { return { startedAt: null, baseSec: 0 }; }
   })());
   const [swStartedAt, setSwStartedAt] = useState<number | null>(swSaved.current.startedAt);
   const [swBaseSec, setSwBaseSec] = useState<number>(swSaved.current.baseSec || 0);
