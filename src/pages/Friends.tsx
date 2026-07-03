@@ -277,11 +277,11 @@ export default function Friends() {
         const profile = isMe ? me : profilesById[uid];
         // For current user, trust local timer state; for friends, use DB flag (with 2h staleness guard)
         const studying = isMe ? meIsStudying : isActivelyStudying(profile);
-        // Add live elapsed time if actively studying (cap at 2h safety)
+        // Add live elapsed time if actively studying (cap at 24h safety)
         let liveMinutes = minutes;
         if (studying && profile?.studying_since) {
           const elapsedMs = now - new Date(profile.studying_since).getTime();
-          const elapsedMins = Math.min(120, Math.max(0, Math.floor(elapsedMs / 1000 / 60)));
+          const elapsedMins = Math.min(1440, Math.max(0, Math.floor(elapsedMs / 1000 / 60)));
           liveMinutes = minutes + elapsedMins;
         }
         return {
