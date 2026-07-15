@@ -282,10 +282,13 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
           setEndTime(Date.now() + nb * 60 * 1000);
           toast.success(isLong ? "🎉 Long break time!" : "☕ Break time!");
         } else {
+          // Break finished — stop and wait for user to start next work session.
+          // Do NOT auto-restart a new work cycle: that caused the timer to run
+          // forever in background tabs and log false study minutes.
           setMode("work");
           setSeconds(workMin * 60);
-          setEndTime(Date.now() + workMin * 60 * 1000);
-          toast.success("💪 Back to work!");
+          setEndTime(null);
+          toast.success("💪 Break over — press start when ready.");
         }
       } else {
         setSeconds(remaining);
