@@ -140,14 +140,24 @@ export default function Friends() {
 
     // Update every 1 second for live study time tracking
     const updateInterval = window.setInterval(() => setNow(Date.now()), 1000);
-    const id = window.setInterval(loadAll, 30_000);
-    
+    // Poll frequently so friends' saved study time appears quickly after they finish a session
+    const id = window.setInterval(loadAll, 10_000);
+
+    // Realtime: refresh whenever any study_sessions row is inserted/updated,
+    // or any profile studying flag changes. Cheap filter happens in loadAll.
+    const channel = supabase
+      .channel("friends-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "study_sessions" }, () => loadAll())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, () => loadAll())
+      .subscribe();
+
     return () => {
       window.removeEventListener("focus", loadAll);
       window.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("zenith:study-update", onStudyUpdate);
       clearInterval(id);
       clearInterval(updateInterval);
+      supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, loadAll]);
