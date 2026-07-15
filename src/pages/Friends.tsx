@@ -48,7 +48,7 @@ const periodStart = (period: "day" | "week" | "month") => {
 
 export default function Friends() {
   const { user } = useAuth();
-  const { running: pomoRunning, mode: pomoModeType, swRunning } = usePomodoro();
+  const { running: pomoRunning, mode: pomoModeType, swRunning, studiedTodayMin } = usePomodoro();
   const meIsStudying = (pomoRunning && pomoModeType === "work") || swRunning;
   const { toast } = useToast();
   const [me, setMe] = useState<Profile | null>(null);
