@@ -281,7 +281,7 @@ export default function Friends() {
         // as a floor so the number never drops to 0 the moment a session ends (it stays synced
         // with what the Pomodoro/Daily Goal card shows).
         let baseMinutes = minutes;
-        if (isMe && period === "today") {
+        if (isMe && period === "day") {
           baseMinutes = Math.max(minutes, Math.floor(studiedTodayMin || 0));
         }
         // Add live elapsed time if actively studying (cap at 24h safety)
