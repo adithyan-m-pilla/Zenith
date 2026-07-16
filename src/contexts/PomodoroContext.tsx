@@ -78,8 +78,23 @@ function playNotificationSound() {
       beep(1000, ctx.currentTime + 0.25, 0.2);
       beep(800, ctx.currentTime + 0.5, 0.3);
     });
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Zenith Timer", { body: "Your timer has finished!" });
+  } catch {}
+}
+
+function showSystemNotification(title: string, body: string) {
+  try {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted") {
+      const n = new Notification(title, {
+        body,
+        icon: "/favicon.png",
+        badge: "/favicon.png",
+        tag: "zenith-pomodoro",
+        requireInteraction: false,
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+    } else if (Notification.permission === "default") {
+      Notification.requestPermission();
     }
   } catch {}
 }
@@ -281,6 +296,10 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
           setSeconds(nb * 60);
           setEndTime(Date.now() + nb * 60 * 1000);
           toast.success(isLong ? "🎉 Long break time!" : "☕ Break time!");
+          showSystemNotification(
+            isLong ? "🎉 Long break time!" : "☕ Break time!",
+            `Focus session complete. Take a ${nb}-minute break.`
+          );
         } else {
           // Break finished — stop and wait for user to start next work session.
           // Do NOT auto-restart a new work cycle: that caused the timer to run
@@ -289,6 +308,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
           setSeconds(workMin * 60);
           setEndTime(null);
           toast.success("💪 Break over — press start when ready.");
+          showSystemNotification("💪 Break over!", "Press start when you're ready for the next focus session.");
         }
       } else {
         setSeconds(remaining);
