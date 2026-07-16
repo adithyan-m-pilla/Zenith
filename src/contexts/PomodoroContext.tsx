@@ -296,6 +296,10 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
           setSeconds(nb * 60);
           setEndTime(Date.now() + nb * 60 * 1000);
           toast.success(isLong ? "🎉 Long break time!" : "☕ Break time!");
+          showSystemNotification(
+            isLong ? "🎉 Long break time!" : "☕ Break time!",
+            `Focus session complete. Take a ${nb}-minute break.`
+          );
         } else {
           // Break finished — stop and wait for user to start next work session.
           // Do NOT auto-restart a new work cycle: that caused the timer to run
@@ -304,6 +308,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
           setSeconds(workMin * 60);
           setEndTime(null);
           toast.success("💪 Break over — press start when ready.");
+          showSystemNotification("💪 Break over!", "Press start when you're ready for the next focus session.");
         }
       } else {
         setSeconds(remaining);
