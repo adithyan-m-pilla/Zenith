@@ -78,8 +78,23 @@ function playNotificationSound() {
       beep(1000, ctx.currentTime + 0.25, 0.2);
       beep(800, ctx.currentTime + 0.5, 0.3);
     });
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Zenith Timer", { body: "Your timer has finished!" });
+  } catch {}
+}
+
+function showSystemNotification(title: string, body: string) {
+  try {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted") {
+      const n = new Notification(title, {
+        body,
+        icon: "/favicon.png",
+        badge: "/favicon.png",
+        tag: "zenith-pomodoro",
+        requireInteraction: false,
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+    } else if (Notification.permission === "default") {
+      Notification.requestPermission();
     }
   } catch {}
 }
