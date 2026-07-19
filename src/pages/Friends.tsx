@@ -34,16 +34,17 @@ type Friendship = {
 };
 
 const periodStart = (period: "day" | "week" | "month") => {
+  // Use LOCAL midnight so the leaderboard resets at the user's local 12am
+  // (matches the Rewards countdown / daily reset behavior).
   const d = new Date();
-  // Convert to UTC-based date for comparison with UTC session dates
-  const utcDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+  d.setHours(0, 0, 0, 0);
   if (period === "week") {
-    const day = (utcDate.getUTCDay() + 6) % 7; // Monday-start
-    utcDate.setUTCDate(utcDate.getUTCDate() - day);
+    const day = (d.getDay() + 6) % 7; // Monday-start
+    d.setDate(d.getDate() - day);
   } else if (period === "month") {
-    utcDate.setUTCDate(1);
+    d.setDate(1);
   }
-  return utcDate;
+  return d;
 };
 
 export default function Friends() {
