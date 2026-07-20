@@ -23,21 +23,21 @@ serve(async (req) => {
 
   try {
     const { messages, level } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const ZAI_API_KEY = Deno.env.get("ZAI_API_KEY");
+    if (!ZAI_API_KEY) throw new Error("ZAI_API_KEY is not configured");
 
     const systemPrompt = systemPrompts[level] || systemPrompts.moderate;
 
     const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      "https://api.z.ai/api/paas/v4/chat/completions",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          Authorization: `Bearer ${ZAI_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "glm-4.6",
           messages: [
             { role: "system", content: systemPrompt },
             ...messages,
@@ -56,12 +56,12 @@ serve(async (req) => {
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Credits exhausted — please top up in Settings." }),
+          JSON.stringify({ error: "Credits exhausted — please top up your z.ai account." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+      console.error("z.ai error:", response.status, t);
       return new Response(
         JSON.stringify({ error: "AI gateway error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
