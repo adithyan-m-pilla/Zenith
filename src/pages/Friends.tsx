@@ -318,7 +318,7 @@ export default function Friends() {
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [accepted, sessions, period, profilesById, me, user, now, meIsStudying, studiedTodayMin]);
+  }, [accepted, sessions, period, profilesById, me, user, now, meIsStudying]);
 
   const fmt = (m: number) => {
     const total = Math.floor(m);
