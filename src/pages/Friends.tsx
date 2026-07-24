@@ -34,22 +34,28 @@ type Friendship = {
 };
 
 const periodStart = (period: "day" | "week" | "month") => {
-  // Use LOCAL midnight so the leaderboard resets at the user's local 12am
-  // (matches the Rewards countdown / daily reset behavior).
+  // Use UTC boundaries so every viewer sees the same total for the same friend.
+  // (If we used the viewer's local midnight, a friend's session logged before
+  // the viewer's midnight but after the friend's midnight would be dropped —
+  // meaning the same friend could appear with different totals to different
+  // viewers in different timezones.)
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  if (period === "week") {
-    const day = (d.getDay() + 6) % 7; // Monday-start
-    d.setDate(d.getDate() - day);
-  } else if (period === "month") {
-    d.setDate(1);
+  if (period === "day") {
+    d.setUTCHours(0, 0, 0, 0);
+  } else if (period === "week") {
+    d.setUTCHours(0, 0, 0, 0);
+    const day = (d.getUTCDay() + 6) % 7; // Monday-start
+    d.setUTCDate(d.getUTCDate() - day);
+  } else {
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(1);
   }
   return d;
 };
 
 export default function Friends() {
   const { user } = useAuth();
-  const { running: pomoRunning, mode: pomoModeType, swRunning, studiedTodayMin } = usePomodoro();
+  const { running: pomoRunning, mode: pomoModeType, swRunning } = usePomodoro();
   const meIsStudying = (pomoRunning && pomoModeType === "work") || swRunning;
   const { toast } = useToast();
   const [me, setMe] = useState<Profile | null>(null);
@@ -288,13 +294,11 @@ export default function Friends() {
         const profile = isMe ? me : profilesById[uid];
         // For current user, trust local timer state; for friends, use DB flag (with 2h staleness guard)
         const studying = isMe ? meIsStudying : isActivelyStudying(profile);
-        // For the current user on the "today" view, use the daily-goal total from PomodoroContext
-        // as a floor so the number never drops to 0 the moment a session ends (it stays synced
-        // with what the Pomodoro/Daily Goal card shows).
-        let baseMinutes = minutes;
-        if (isMe && period === "day") {
-          baseMinutes = Math.max(minutes, Math.floor(studiedTodayMin || 0));
-        }
+        // Use the DB-summed minutes as the source of truth so the current
+        // user and every friend see the same number for the same person.
+        // (Previously we mixed in the local `studiedTodayMin` which used a
+        // different day boundary and caused mismatches across viewers.)
+        const baseMinutes = minutes;
         // Add live elapsed time if actively studying (cap at 24h safety)
         let liveMinutes = baseMinutes;
         if (studying && profile?.studying_since) {
@@ -314,7 +318,7 @@ export default function Friends() {
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [accepted, sessions, period, profilesById, me, user, now, meIsStudying, studiedTodayMin]);
+  }, [accepted, sessions, period, profilesById, me, user, now, meIsStudying]);
 
   const fmt = (m: number) => {
     const total = Math.floor(m);
