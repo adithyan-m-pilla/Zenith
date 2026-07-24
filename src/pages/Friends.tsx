@@ -294,13 +294,11 @@ export default function Friends() {
         const profile = isMe ? me : profilesById[uid];
         // For current user, trust local timer state; for friends, use DB flag (with 2h staleness guard)
         const studying = isMe ? meIsStudying : isActivelyStudying(profile);
-        // For the current user on the "today" view, use the daily-goal total from PomodoroContext
-        // as a floor so the number never drops to 0 the moment a session ends (it stays synced
-        // with what the Pomodoro/Daily Goal card shows).
-        let baseMinutes = minutes;
-        if (isMe && period === "day") {
-          baseMinutes = Math.max(minutes, Math.floor(studiedTodayMin || 0));
-        }
+        // Use the DB-summed minutes as the source of truth so the current
+        // user and every friend see the same number for the same person.
+        // (Previously we mixed in the local `studiedTodayMin` which used a
+        // different day boundary and caused mismatches across viewers.)
+        const baseMinutes = minutes;
         // Add live elapsed time if actively studying (cap at 24h safety)
         let liveMinutes = baseMinutes;
         if (studying && profile?.studying_since) {
