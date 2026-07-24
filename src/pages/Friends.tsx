@@ -34,21 +34,18 @@ type Friendship = {
 };
 
 const periodStart = (period: "day" | "week" | "month") => {
-  // Use UTC boundaries so every viewer sees the same total for the same friend.
-  // (If we used the viewer's local midnight, a friend's session logged before
-  // the viewer's midnight but after the friend's midnight would be dropped —
-  // meaning the same friend could appear with different totals to different
-  // viewers in different timezones.)
+  // Use the viewer's local midnight — matches the Daily Goal / Rewards reset
+  // and the Pomodoro `studiedTodayMin` counter, so totals stay consistent.
   const d = new Date();
   if (period === "day") {
-    d.setUTCHours(0, 0, 0, 0);
+    d.setHours(0, 0, 0, 0);
   } else if (period === "week") {
-    d.setUTCHours(0, 0, 0, 0);
-    const day = (d.getUTCDay() + 6) % 7; // Monday-start
-    d.setUTCDate(d.getUTCDate() - day);
+    d.setHours(0, 0, 0, 0);
+    const day = (d.getDay() + 6) % 7; // Monday-start
+    d.setDate(d.getDate() - day);
   } else {
-    d.setUTCHours(0, 0, 0, 0);
-    d.setUTCDate(1);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(1);
   }
   return d;
 };
