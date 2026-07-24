@@ -34,15 +34,21 @@ type Friendship = {
 };
 
 const periodStart = (period: "day" | "week" | "month") => {
-  // Use LOCAL midnight so the leaderboard resets at the user's local 12am
-  // (matches the Rewards countdown / daily reset behavior).
+  // Use UTC boundaries so every viewer sees the same total for the same friend.
+  // (If we used the viewer's local midnight, a friend's session logged before
+  // the viewer's midnight but after the friend's midnight would be dropped —
+  // meaning the same friend could appear with different totals to different
+  // viewers in different timezones.)
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  if (period === "week") {
-    const day = (d.getDay() + 6) % 7; // Monday-start
-    d.setDate(d.getDate() - day);
-  } else if (period === "month") {
-    d.setDate(1);
+  if (period === "day") {
+    d.setUTCHours(0, 0, 0, 0);
+  } else if (period === "week") {
+    d.setUTCHours(0, 0, 0, 0);
+    const day = (d.getUTCDay() + 6) % 7; // Monday-start
+    d.setUTCDate(d.getUTCDate() - day);
+  } else {
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(1);
   }
   return d;
 };
