@@ -11,6 +11,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppTheme, THEMES } from "@/contexts/ThemeContext";
 import logo from "@/assets/logo.png";
 
+const getLocalDateKey = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/ai-tutor", icon: Brain, label: "AI Tutor" },
@@ -35,27 +43,34 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
 
   useEffect(() => {
     if (!user) return;
-    supabase
+    let cancelled = false;
+    const loadDailyGoal = async () => {
+      const [{ data: profile }, { data: total }] = await Promise.all([
+        supabase
       .from("profiles")
       .select("display_name, daily_goal_hours")
       .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.display_name) setDisplayName(data.display_name);
-        if (data?.daily_goal_hours) setDailyGoalHours(Number(data.daily_goal_hours));
-      });
+      .maybeSingle(),
+        supabase
+          .from("study_daily_totals")
+          .select("total_minutes")
+          .eq("user_id", user.id)
+          .eq("study_date", getLocalDateKey())
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      if (profile?.display_name) setDisplayName(profile.display_name);
+      if (profile?.daily_goal_hours) setDailyGoalHours(Number(profile.daily_goal_hours));
+      const totalMin = Math.min(1440, Math.max(0, Math.floor(Number(total?.total_minutes || 0))));
+      setStudiedToday(Math.round((totalMin / 60) * 10) / 10);
+    };
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    supabase
-      .from("study_sessions")
-      .select("duration_minutes")
-      .eq("user_id", user.id)
-      .gte("completed_at", todayStart.toISOString())
-      .then(({ data }) => {
-        const totalMin = (data || []).reduce((a: number, s: any) => a + (s.duration_minutes || 0), 0);
-        setStudiedToday(Math.round((totalMin / 60) * 10) / 10);
-      });
+    loadDailyGoal();
+    window.addEventListener("zenith:study-update", loadDailyGoal);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("zenith:study-update", loadDailyGoal);
+    };
   }, [user]);
 
   const handleSave = async () => {

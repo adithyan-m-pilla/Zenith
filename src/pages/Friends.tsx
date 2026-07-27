@@ -33,6 +33,21 @@ type Friendship = {
   status: "pending" | "accepted";
 };
 
+type DailyTotal = {
+  user_id: string;
+  study_date: string;
+  total_minutes: number;
+};
+
+const localDateKey = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const cleanMinutes = (value: number) => Math.min(1440, Math.max(0, Math.floor(Number(value) || 0)));
+
 const periodStart = (period: "day" | "week" | "month") => {
   // Use the viewer's local midnight — matches the Daily Goal / Rewards reset
   // and the Pomodoro `studiedTodayMin` counter, so totals stay consistent.
@@ -63,7 +78,7 @@ export default function Friends() {
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [profilesById, setProfilesById] = useState<Record<string, Profile>>({});
-  const [sessions, setSessions] = useState<Array<{ user_id: string; duration_minutes: number; completed_at: string; session_type: string | null }>>([]);
+  const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
   const [copied, setCopied] = useState(false);
   const [period, setPeriod] = useState<"day" | "week" | "month">("day");
   const [now, setNow] = useState(Date.now()); // For live study time updates
@@ -112,16 +127,16 @@ export default function Friends() {
     const accepted = fsList.filter((f) => f.status === "accepted");
     const friendIds = accepted.map((f) => (f.requester_id === user.id ? f.addressee_id : f.requester_id));
     const ids = [user.id, ...friendIds];
-    const monthStart = periodStart("month");
-    const { data: ss, error: sessError } = await supabase
-      .from("study_sessions")
-      .select("user_id, duration_minutes, completed_at, session_type")
+    const monthStart = localDateKey(periodStart("month"));
+    const { data: totals, error: totalsError } = await supabase
+      .from("study_daily_totals")
+      .select("user_id, study_date, total_minutes")
       .in("user_id", ids)
-      .gte("completed_at", monthStart.toISOString());
-    if (sessError) {
-      console.error("Failed to fetch sessions:", sessError);
+      .gte("study_date", monthStart);
+    if (totalsError) {
+      console.error("Failed to fetch daily totals:", totalsError);
     }
-    setSessions((ss || []) as any);
+    setDailyTotals(((totals || []) as DailyTotal[]).map((t) => ({ ...t, total_minutes: cleanMinutes(t.total_minutes) })));
   }, [user]);
 
   useEffect(() => {
@@ -147,10 +162,10 @@ export default function Friends() {
     // Poll frequently so friends' saved study time appears quickly after they finish a session
     const id = window.setInterval(loadAll, 10_000);
 
-    // Realtime: refresh whenever any study_sessions row is inserted/updated,
-    // or any profile studying flag changes. Cheap filter happens in loadAll.
+    // Realtime: refresh whenever study totals or profile studying flags change.
     const channel = supabase
       .channel("friends-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "study_daily_totals" }, () => loadAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "study_sessions" }, () => loadAll())
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, () => loadAll())
       .subscribe();
@@ -268,21 +283,16 @@ export default function Friends() {
 
   const leaderboard = useMemo(() => {
     if (!user) return [];
-    const start = periodStart(period);
+    const start = localDateKey(periodStart(period));
     const totals: Record<string, number> = { [user.id]: 0 };
     accepted.forEach((f) => {
       const fid = f.requester_id === user.id ? f.addressee_id : f.requester_id;
       totals[fid] = 0;
     });
-    let includedCount = 0;
-    sessions.forEach((s) => {
-      const sDate = new Date(s.completed_at);
-      if (sDate < start) return;
-      includedCount++;
-      if (totals[s.user_id] !== undefined) {
-        // Defensive: floor + cap per-row to guard against corrupted rows
-        const d = Math.min(1440, Math.max(0, Math.floor(s.duration_minutes || 0)));
-        totals[s.user_id] += d;
+    dailyTotals.forEach((t) => {
+      if (t.study_date < start) return;
+      if (totals[t.user_id] !== undefined) {
+        totals[t.user_id] += cleanMinutes(t.total_minutes);
       }
     });
     return Object.entries(totals)
@@ -295,17 +305,17 @@ export default function Friends() {
         // user and every friend see the same number for the same person.
         // (Previously we mixed in the local `studiedTodayMin` which used a
         // different day boundary and caused mismatches across viewers.)
-        const baseMinutes = minutes;
+        const baseMinutes = cleanMinutes(minutes);
         // Add live elapsed time if actively studying (cap at 24h safety)
         let liveMinutes = baseMinutes;
         if (studying && profile?.studying_since) {
           const elapsedMs = now - new Date(profile.studying_since).getTime();
-          const elapsedMins = Math.min(1440, Math.max(0, Math.floor(elapsedMs / 1000 / 60)));
-          liveMinutes = baseMinutes + elapsedMins;
+          const elapsedMins = cleanMinutes(elapsedMs / 1000 / 60);
+          liveMinutes = Math.min(1440, baseMinutes + elapsedMins);
         }
         return {
           uid,
-          minutes: Math.floor(liveMinutes),
+          minutes: cleanMinutes(liveMinutes),
           name:
             isMe
               ? (me?.display_name || "You") + " (you)"
@@ -315,10 +325,10 @@ export default function Friends() {
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [accepted, sessions, period, profilesById, me, user, now, meIsStudying]);
+  }, [accepted, dailyTotals, period, profilesById, me, user, now, meIsStudying]);
 
   const fmt = (m: number) => {
-    const total = Math.floor(m);
+    const total = cleanMinutes(m);
     const h = Math.floor(total / 60);
     const mm = total % 60;
     return h ? `${h}h ${mm}m` : `${mm}m`;
@@ -508,10 +518,8 @@ export default function Friends() {
           {accepted.map((f) => {
             const fid = f.requester_id === user?.id ? f.addressee_id : f.requester_id;
             const p = profilesById[fid];
-            const todayStart = periodStart("day");
-            const todayMin = Math.floor(sessions
-              .filter((s) => s.user_id === fid && new Date(s.completed_at) >= todayStart)
-              .reduce((a, s) => a + Math.min(1440, Math.max(0, Math.floor(s.duration_minutes || 0))), 0));
+            const today = localDateKey(periodStart("day"));
+            const todayMin = cleanMinutes(dailyTotals.find((t) => t.user_id === fid && t.study_date === today)?.total_minutes ?? 0);
             const studying = isActivelyStudying(p);
             return (
               <div key={f.id} className="flex items-center justify-between p-3 rounded-md bg-muted/40">

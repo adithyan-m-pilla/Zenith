@@ -133,12 +133,40 @@ export type Database = {
         }
         Relationships: []
       }
+      study_daily_totals: {
+        Row: {
+          created_at: string
+          id: string
+          study_date: string
+          total_minutes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          study_date: string
+          total_minutes?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          study_date?: string
+          total_minutes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       study_sessions: {
         Row: {
           completed_at: string
           created_at: string
           duration_minutes: number
           id: string
+          local_date: string | null
           session_type: string
           subject: string
           user_id: string
@@ -148,6 +176,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number
           id?: string
+          local_date?: string | null
           session_type?: string
           subject: string
           user_id: string
@@ -157,6 +186,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number
           id?: string
+          local_date?: string | null
           session_type?: string
           subject?: string
           user_id?: string
@@ -222,7 +252,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      recompute_study_daily_total: {
+        Args: { _study_date: string; _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
