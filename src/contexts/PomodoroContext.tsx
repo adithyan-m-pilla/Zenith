@@ -241,26 +241,13 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     prevDurRef.current = { workMin, breakMin, mode };
   }, [workMin, breakMin, mode, endTime]);
 
-  // Broadcast studying status to profile so friends can see online/offline-style indicator
-  useEffect(() => {
-    if (!user) return;
-    const studying = endTime !== null && mode === "work";
-    supabase
-      .from("profiles")
-      .update({ is_studying: studying, studying_since: studying ? new Date().toISOString() : null })
-      .eq("user_id", user.id)
-      .then(() => {
-        dispatchStudyUpdate();
-      });
-  }, [user, endTime, mode]);
-
   const dispatchStudyUpdate = useCallback(() => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("zenith:study-update"));
     }
   }, []);
 
-  const saveSession = useCallback(async (minutes: number, isCompletion = false) => {
+  const saveSession = useCallback(async (minutes: number, isCompletion = false, touchStudying = false) => {
     if (!user) return;
     // Sanitize: whole minutes, and cap at 24h to prevent runaway/corrupted values
     const safeMinutes = sanitizeMinutes(minutes);
@@ -285,7 +272,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
         setStudiedTodayMin((c) => c + safeMinutes);
         toast(`⏱️ +${safeMinutes} min study progress saved!`, { position: "bottom-center" });
       }
-      const active = (stateRef.current.mode === "work" && stateRef.current.endTime !== null) || swRunningRef.current;
+      const active = touchStudying && ((stateRef.current.mode === "work" && stateRef.current.endTime !== null) || swRunningRef.current);
       if (active) {
         supabase
           .from("profiles")
@@ -308,7 +295,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
         playNotificationSound();
         if (mode === "work") {
           const remainingMin = Math.max(0, workMin - savedMinutesRef.current);
-          if (remainingMin > 0) saveSession(remainingMin, true);
+          if (remainingMin > 0) saveSession(remainingMin, true, false);
           else {
             // Already saved all minutes via partials, but still count as a completed session
             setSessionsToday((c) => c + 1);
@@ -347,7 +334,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
           const delta = totalMinutes - savedMinutesRef.current;
           if (delta >= 1) {
             savedMinutesRef.current = totalMinutes;
-            saveSession(delta);
+            saveSession(delta, false, true);
           }
         }
       }
@@ -398,7 +385,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     const delta = totalMinutes - savedMinutesRef.current;
     if (delta >= 1) {
       savedMinutesRef.current = totalMinutes;
-      saveSession(delta);
+      saveSession(delta, false, false);
     }
   };
 
@@ -512,7 +499,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   const addStudyTime = async (minutes: number, asCompletedSession = true) => {
     const m = sanitizeMinutes(minutes);
     if (m <= 0) return;
-    await saveSession(m, asCompletedSession);
+      await saveSession(m, asCompletedSession, false);
   };
 
   // ============ Stopwatch (persistent count-up) ============
@@ -537,15 +524,16 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
   const swSavedMinRef = useRef(0);
   swRunningRef.current = swRunning;
 
+  // Broadcast one clear studying status for Pomodoro + Stopwatch.
   useEffect(() => {
     if (!user) return;
-    const studying = swRunning;
+    const studying = (endTime !== null && mode === "work") || swRunning;
     supabase
       .from("profiles")
       .update({ is_studying: studying, studying_since: studying ? new Date().toISOString() : null })
       .eq("user_id", user.id)
       .then(() => dispatchStudyUpdate());
-  }, [user, swRunning, dispatchStudyUpdate]);
+  }, [user, endTime, mode, swRunning, dispatchStudyUpdate]);
 
   useEffect(() => {
     localStorage.setItem(SW_KEY, JSON.stringify({ startedAt: swStartedAt, baseSec: swBaseSec }));
@@ -561,7 +549,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       const delta = totalMin - swSavedMinRef.current;
       if (delta >= 1) {
         swSavedMinRef.current = totalMin;
-        saveSession(delta, false);
+        saveSession(delta, false, true);
       }
     }, 1000);
     return () => clearInterval(id);
@@ -585,7 +573,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     setSwSeconds(total);
     const totalMin = Math.floor(total / 60);
     const delta = totalMin - swSavedMinRef.current;
-    if (delta >= 1) { swSavedMinRef.current = totalMin; saveSession(delta, false); }
+    if (delta >= 1) { swSavedMinRef.current = totalMin; saveSession(delta, false, false); }
   };
 
   const stopStopwatch = async () => {
@@ -597,7 +585,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
     setSwSeconds(0);
     const totalMin = Math.floor(total / 60);
     const delta = totalMin - swSavedMinRef.current;
-    if (delta >= 1) await saveSession(delta, false);
+    if (delta >= 1) await saveSession(delta, false, false);
     swSavedMinRef.current = 0;
     if (totalMin >= 1) toast.success(`Stopwatch saved · ${totalMin} min added`);
   };
@@ -611,7 +599,7 @@ export const PomodoroProvider = ({ children }: { children: ReactNode }) => {
       setSwSeconds(total);
       const totalMin = Math.floor(total / 60);
       const delta = totalMin - swSavedMinRef.current;
-      if (delta >= 1) { swSavedMinRef.current = totalMin; saveSession(delta, false); }
+      if (delta >= 1) { swSavedMinRef.current = totalMin; saveSession(delta, false, false); }
     }
     start();
   };
