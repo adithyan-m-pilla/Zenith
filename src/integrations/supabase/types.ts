@@ -252,7 +252,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      recompute_study_daily_total: {
+        Args: { _study_date: string; _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
