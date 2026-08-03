@@ -30,6 +30,7 @@ const LogBook = () => {
   const [totals, setTotals] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [minutesInput, setMinutesInput] = useState("");
+  const [chapterQuery, setChapterQuery] = useState("");
   const [saving, setSaving] = useState(false);
 
   const year = cursor.getFullYear();
