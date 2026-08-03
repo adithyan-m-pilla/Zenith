@@ -105,7 +105,12 @@ const LogBook = () => {
   const selectedChaptersDone = selected
     ? allChapters.filter((c) => c.is_completed && c.completed_date === selected)
     : [];
-  const pendingChapters = allChapters.filter((c) => !c.is_completed);
+  const q = chapterQuery.trim().toLowerCase();
+  const pendingChapters = allChapters.filter(
+    (c) =>
+      !c.is_completed &&
+      (!q || c.name.toLowerCase().includes(q) || c.subjectName.toLowerCase().includes(q))
+  );
 
   const addTime = async () => {
     if (!user || !selected) return;
