@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, BookOpen, Plus, Check } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, BookOpen, Plus, Check, X, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,7 @@ const LogBook = () => {
   const [totals, setTotals] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [minutesInput, setMinutesInput] = useState("");
+  const [chapterQuery, setChapterQuery] = useState("");
   const [saving, setSaving] = useState(false);
 
   const year = cursor.getFullYear();
@@ -105,7 +106,12 @@ const LogBook = () => {
   const selectedChaptersDone = selected
     ? allChapters.filter((c) => c.is_completed && c.completed_date === selected)
     : [];
-  const pendingChapters = allChapters.filter((c) => !c.is_completed);
+  const q = chapterQuery.trim().toLowerCase();
+  const pendingChapters = allChapters.filter(
+    (c) =>
+      !c.is_completed &&
+      (!q || c.name.toLowerCase().includes(q) || c.subjectName.toLowerCase().includes(q))
+  );
 
   const addTime = async () => {
     if (!user || !selected) return;
@@ -145,7 +151,20 @@ const LogBook = () => {
       return;
     }
     await refetchSyllabus();
-    toast({ title: "Chapter marked finished" });
+    toast({ title: "Chapter marked finished", description: `Revision cycle starts from ${selected}` });
+  };
+
+  const unmarkChapter = async (chapterId: string) => {
+    const { error } = await supabase
+      .from("chapters")
+      .update({ is_completed: false, completed_date: null, revisions_completed: 0, last_revision_date: null })
+      .eq("id", chapterId);
+    if (error) {
+      toast({ title: "Could not update chapter", description: error.message, variant: "destructive" });
+      return;
+    }
+    await refetchSyllabus();
+    toast({ title: "Chapter unmarked" });
   };
 
   return (
@@ -242,9 +261,19 @@ const LogBook = () => {
           </h3>
           <div className="space-y-2">
             {monthChapters.map((c) => (
-              <div key={c.id} className="flex items-center justify-between text-sm">
+              <div key={c.id} className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-foreground">{c.name}</span>
-                <span className="text-xs text-muted-foreground">{c.subjectName} · {c.completed_date}</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{c.subjectName} · {c.completed_date}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-muted-foreground"
+                    onClick={() => unmarkChapter(c.id)}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </span>
               </div>
             ))}
           </div>
@@ -286,14 +315,39 @@ const LogBook = () => {
               ) : (
                 <div className="space-y-1 mb-3">
                   {selectedChaptersDone.map((c) => (
-                    <div key={c.id} className="flex items-center gap-2 text-sm text-foreground">
-                      <Check className="w-3.5 h-3.5 text-primary" /> {c.name}
+                    <div key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <Check className="w-3.5 h-3.5 text-primary" /> {c.name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground"
+                        onClick={() => unmarkChapter(c.id)}
+                      >
+                        <X className="w-3.5 h-3.5 mr-1" /> Untick
+                      </Button>
                     </div>
                   ))}
                 </div>
               )}
 
-              {pendingChapters.length > 0 && (
+              <div className="relative mt-3 mb-2">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-8 h-9 text-sm"
+                  placeholder="Search chapters or subjects"
+                  value={chapterQuery}
+                  onChange={(e) => setChapterQuery(e.target.value)}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-1">
+                Marking a chapter here starts its revision cycle from {selected}.
+              </p>
+
+              {pendingChapters.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No matching pending chapters</p>
+              ) : (
                 <div className="max-h-48 overflow-y-auto space-y-1 mt-2">
                   {pendingChapters.map((c) => (
                     <button
