@@ -305,14 +305,39 @@ const LogBook = () => {
               ) : (
                 <div className="space-y-1 mb-3">
                   {selectedChaptersDone.map((c) => (
-                    <div key={c.id} className="flex items-center gap-2 text-sm text-foreground">
-                      <Check className="w-3.5 h-3.5 text-primary" /> {c.name}
+                    <div key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <Check className="w-3.5 h-3.5 text-primary" /> {c.name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground"
+                        onClick={() => unmarkChapter(c.id)}
+                      >
+                        <X className="w-3.5 h-3.5 mr-1" /> Untick
+                      </Button>
                     </div>
                   ))}
                 </div>
               )}
 
-              {pendingChapters.length > 0 && (
+              <div className="relative mt-3 mb-2">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-8 h-9 text-sm"
+                  placeholder="Search chapters or subjects"
+                  value={chapterQuery}
+                  onChange={(e) => setChapterQuery(e.target.value)}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-1">
+                Marking a chapter here starts its revision cycle from {selected}.
+              </p>
+
+              {pendingChapters.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No matching pending chapters</p>
+              ) : (
                 <div className="max-h-48 overflow-y-auto space-y-1 mt-2">
                   {pendingChapters.map((c) => (
                     <button
