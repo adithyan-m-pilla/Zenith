@@ -261,9 +261,19 @@ const LogBook = () => {
           </h3>
           <div className="space-y-2">
             {monthChapters.map((c) => (
-              <div key={c.id} className="flex items-center justify-between text-sm">
+              <div key={c.id} className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-foreground">{c.name}</span>
-                <span className="text-xs text-muted-foreground">{c.subjectName} · {c.completed_date}</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{c.subjectName} · {c.completed_date}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-muted-foreground"
+                    onClick={() => unmarkChapter(c.id)}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </span>
               </div>
             ))}
           </div>
