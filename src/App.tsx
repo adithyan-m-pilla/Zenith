@@ -14,6 +14,7 @@ import Pomodoro from "./pages/Pomodoro";
 import Analytics from "./pages/Analytics";
 import Rewards from "./pages/Rewards";
 import Friends from "./pages/Friends";
+import LogBook from "./pages/LogBook";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -46,6 +47,7 @@ const ProtectedLayout = () => {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/rewards" element={<Rewards />} />
             <Route path="/friends" element={<Friends />} />
+            <Route path="/logbook" element={<LogBook />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
