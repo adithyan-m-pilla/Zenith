@@ -151,7 +151,20 @@ const LogBook = () => {
       return;
     }
     await refetchSyllabus();
-    toast({ title: "Chapter marked finished" });
+    toast({ title: "Chapter marked finished", description: `Revision cycle starts from ${selected}` });
+  };
+
+  const unmarkChapter = async (chapterId: string) => {
+    const { error } = await supabase
+      .from("chapters")
+      .update({ is_completed: false, completed_date: null, revisions_completed: 0, last_revision_date: null })
+      .eq("id", chapterId);
+    if (error) {
+      toast({ title: "Could not update chapter", description: error.message, variant: "destructive" });
+      return;
+    }
+    await refetchSyllabus();
+    toast({ title: "Chapter unmarked" });
   };
 
   return (
