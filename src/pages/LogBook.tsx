@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, BookOpen, Plus, Check, X, Search } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, BookOpen, Plus, Check, X, Search, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useSyllabus } from "@/hooks/useSyllabus";
+import { getDueRevisions, getRevisionLabel } from "@/lib/revision";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
 
 const dateKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -106,12 +108,25 @@ const LogBook = () => {
   const selectedChaptersDone = selected
     ? allChapters.filter((c) => c.is_completed && c.completed_date === selected)
     : [];
+  const selectedRevisionsDone = selected
+    ? allChapters.filter((c) => c.revisions_completed > 0 && c.last_revision_date === selected)
+    : [];
+  const dueRevisionChapters = selected
+    ? allChapters.filter(
+        (c) =>
+          c.is_completed &&
+          c.completed_date &&
+          c.last_revision_date !== selected &&
+          getDueRevisions(c.completed_date, c.revisions_completed, selected, c.last_revision_date) !== null
+      )
+    : [];
   const q = chapterQuery.trim().toLowerCase();
   const pendingChapters = allChapters.filter(
     (c) =>
       !c.is_completed &&
       (!q || c.name.toLowerCase().includes(q) || c.subjectName.toLowerCase().includes(q))
   );
+
 
   const addTime = async () => {
     if (!user || !selected) return;
@@ -166,6 +181,37 @@ const LogBook = () => {
     await refetchSyllabus();
     toast({ title: "Chapter unmarked" });
   };
+
+  const markRevision = async (c: { id: string; revisions_completed: number }) => {
+    if (!selected) return;
+    const { error } = await supabase
+      .from("chapters")
+      .update({ revisions_completed: c.revisions_completed + 1, last_revision_date: selected })
+      .eq("id", c.id);
+    if (error) {
+      toast({ title: "Could not update revision", description: error.message, variant: "destructive" });
+      return;
+    }
+    await refetchSyllabus();
+    toast({ title: "Revision logged", description: `Marked on ${selected}` });
+  };
+
+  const unmarkRevision = async (c: { id: string; revisions_completed: number }) => {
+    const { error } = await supabase
+      .from("chapters")
+      .update({
+        revisions_completed: Math.max(0, c.revisions_completed - 1),
+        last_revision_date: null,
+      })
+      .eq("id", c.id);
+    if (error) {
+      toast({ title: "Could not update revision", description: error.message, variant: "destructive" });
+      return;
+    }
+    await refetchSyllabus();
+    toast({ title: "Revision unmarked" });
+  };
+
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -231,6 +277,7 @@ const LogBook = () => {
             const mins = totals[key] || 0;
             const disabled = isFuture(key) || isBeforeJoin(key);
             const chaps = allChapters.filter((c) => c.is_completed && c.completed_date === key).length;
+            const revs = allChapters.filter((c) => c.revisions_completed > 0 && c.last_revision_date === key).length;
             return (
               <button
                 key={day}
@@ -239,7 +286,7 @@ const LogBook = () => {
                 className={`aspect-square rounded-md relative ${heat(mins)} ${
                   disabled ? "opacity-30 cursor-not-allowed" : "hover:ring-2 hover:ring-primary/60"
                 } transition-all`}
-                title={`${key} — ${fmtHM(mins)}`}
+                title={`${key} — ${fmtHM(mins)}${chaps ? ` · ${chaps} chapter(s)` : ""}${revs ? ` · ${revs} revision(s)` : ""}`}
               >
                 <span className="absolute top-1 left-1.5 text-[10px] text-foreground/70">{day}</span>
                 {mins > 0 && (
@@ -248,6 +295,10 @@ const LogBook = () => {
                 {chaps > 0 && (
                   <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
                 )}
+                {revs > 0 && (
+                  <span className="absolute top-1 right-3.5 w-1.5 h-1.5 rounded-full bg-accent" />
+                )}
+
               </button>
             );
           })}
@@ -324,8 +375,9 @@ const LogBook = () => {
                         size="sm"
                         className="h-7 px-2 text-xs text-muted-foreground"
                         onClick={() => unmarkChapter(c.id)}
+                        aria-label="Untick chapter"
                       >
-                        <X className="w-3.5 h-3.5 mr-1" /> Untick
+                        <X className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   ))}
@@ -362,6 +414,60 @@ const LogBook = () => {
                 </div>
               )}
             </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5" /> Revisions done this day
+              </p>
+              {selectedRevisionsDone.length === 0 ? (
+                <p className="text-xs text-muted-foreground">None yet</p>
+              ) : (
+                <div className="space-y-1 mb-3">
+                  {selectedRevisionsDone.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <Check className="w-3.5 h-3.5 text-primary" /> {c.name}
+                        <span className="text-xs text-muted-foreground">
+                          {getRevisionLabel(c.revisions_completed - 1)}
+                        </span>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground"
+                        onClick={() => unmarkRevision(c)}
+                        aria-label="Untick revision"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground mb-1">
+                Revisions due on or before {selected}
+              </p>
+              {dueRevisionChapters.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nothing due</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-1 mt-2">
+                  {dueRevisionChapters.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => markRevision(c)}
+                      className="w-full flex items-center justify-between text-left text-sm px-2 py-1.5 rounded-md hover:bg-muted transition-colors"
+                    >
+                      <span className="text-foreground">{c.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {getRevisionLabel(c.revisions_completed)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </DialogContent>
       </Dialog>
