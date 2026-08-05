@@ -277,6 +277,7 @@ const LogBook = () => {
             const mins = totals[key] || 0;
             const disabled = isFuture(key) || isBeforeJoin(key);
             const chaps = allChapters.filter((c) => c.is_completed && c.completed_date === key).length;
+            const revs = allChapters.filter((c) => c.revisions_completed > 0 && c.last_revision_date === key).length;
             return (
               <button
                 key={day}
@@ -285,7 +286,7 @@ const LogBook = () => {
                 className={`aspect-square rounded-md relative ${heat(mins)} ${
                   disabled ? "opacity-30 cursor-not-allowed" : "hover:ring-2 hover:ring-primary/60"
                 } transition-all`}
-                title={`${key} — ${fmtHM(mins)}`}
+                title={`${key} — ${fmtHM(mins)}${chaps ? ` · ${chaps} chapter(s)` : ""}${revs ? ` · ${revs} revision(s)` : ""}`}
               >
                 <span className="absolute top-1 left-1.5 text-[10px] text-foreground/70">{day}</span>
                 {mins > 0 && (
@@ -294,6 +295,10 @@ const LogBook = () => {
                 {chaps > 0 && (
                   <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
                 )}
+                {revs > 0 && (
+                  <span className="absolute top-1 right-3.5 w-1.5 h-1.5 rounded-full bg-accent" />
+                )}
+
               </button>
             );
           })}
