@@ -182,6 +182,37 @@ const LogBook = () => {
     toast({ title: "Chapter unmarked" });
   };
 
+  const markRevision = async (c: { id: string; revisions_completed: number }) => {
+    if (!selected) return;
+    const { error } = await supabase
+      .from("chapters")
+      .update({ revisions_completed: c.revisions_completed + 1, last_revision_date: selected })
+      .eq("id", c.id);
+    if (error) {
+      toast({ title: "Could not update revision", description: error.message, variant: "destructive" });
+      return;
+    }
+    await refetchSyllabus();
+    toast({ title: "Revision logged", description: `Marked on ${selected}` });
+  };
+
+  const unmarkRevision = async (c: { id: string; revisions_completed: number }) => {
+    const { error } = await supabase
+      .from("chapters")
+      .update({
+        revisions_completed: Math.max(0, c.revisions_completed - 1),
+        last_revision_date: null,
+      })
+      .eq("id", c.id);
+    if (error) {
+      toast({ title: "Could not update revision", description: error.message, variant: "destructive" });
+      return;
+    }
+    await refetchSyllabus();
+    toast({ title: "Revision unmarked" });
+  };
+
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <header className="flex items-center gap-3">
