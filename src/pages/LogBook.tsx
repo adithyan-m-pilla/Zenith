@@ -108,12 +108,25 @@ const LogBook = () => {
   const selectedChaptersDone = selected
     ? allChapters.filter((c) => c.is_completed && c.completed_date === selected)
     : [];
+  const selectedRevisionsDone = selected
+    ? allChapters.filter((c) => c.revisions_completed > 0 && c.last_revision_date === selected)
+    : [];
+  const dueRevisionChapters = selected
+    ? allChapters.filter(
+        (c) =>
+          c.is_completed &&
+          c.completed_date &&
+          c.last_revision_date !== selected &&
+          getDueRevisions(c.completed_date, c.revisions_completed, selected, c.last_revision_date) !== null
+      )
+    : [];
   const q = chapterQuery.trim().toLowerCase();
   const pendingChapters = allChapters.filter(
     (c) =>
       !c.is_completed &&
       (!q || c.name.toLowerCase().includes(q) || c.subjectName.toLowerCase().includes(q))
   );
+
 
   const addTime = async () => {
     if (!user || !selected) return;
