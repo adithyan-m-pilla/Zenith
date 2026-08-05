@@ -326,8 +326,9 @@ const LogBook = () => {
                         size="sm"
                         className="h-7 px-2 text-xs text-muted-foreground"
                         onClick={() => unmarkChapter(c.id)}
+                        aria-label="Untick chapter"
                       >
-                        <X className="w-3.5 h-3.5 mr-1" /> Untick
+                        <X className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   ))}
@@ -364,6 +365,60 @@ const LogBook = () => {
                 </div>
               )}
             </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5" /> Revisions done this day
+              </p>
+              {selectedRevisionsDone.length === 0 ? (
+                <p className="text-xs text-muted-foreground">None yet</p>
+              ) : (
+                <div className="space-y-1 mb-3">
+                  {selectedRevisionsDone.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <Check className="w-3.5 h-3.5 text-primary" /> {c.name}
+                        <span className="text-xs text-muted-foreground">
+                          {getRevisionLabel(c.revisions_completed - 1)}
+                        </span>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground"
+                        onClick={() => unmarkRevision(c)}
+                        aria-label="Untick revision"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground mb-1">
+                Revisions due on or before {selected}
+              </p>
+              {dueRevisionChapters.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nothing due</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-1 mt-2">
+                  {dueRevisionChapters.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => markRevision(c)}
+                      className="w-full flex items-center justify-between text-left text-sm px-2 py-1.5 rounded-md hover:bg-muted transition-colors"
+                    >
+                      <span className="text-foreground">{c.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {getRevisionLabel(c.revisions_completed)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </DialogContent>
       </Dialog>
