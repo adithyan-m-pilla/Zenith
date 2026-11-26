@@ -1,0 +1,2 @@
+- Keep Lovable Cloud Auth as the canonical sign-in and use its verified user UUID as the Firebase custom-auth UID; this preserves existing accounts and scopes Firestore data to the same identity.
+- Migrate app records to Firestore while retaining the current Cloud database through validation; this provides a safe fallback until existing data is confirmed in Firebase.

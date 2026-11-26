@@ -1,0 +1,6 @@
+- [ ] Replace app data storage with Firebase while preserving existing records.
+- [ ] Keep current sign-in and existing accounts; establish a secure identity bridge for Firebase data access.
+- [x] Receive the existing Firebase web-app configuration (public client settings).
+- [x] Get permission to request the private Firebase service credential through Lovable's secure form.
+- [ ] Configure Firebase data access after the credential and Firestore availability are confirmed.
+- [ ] Validate study-time saving, syllabus edits, log-book backfill, friends totals, and rewards before any data cutover.
